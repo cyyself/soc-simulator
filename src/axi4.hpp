@@ -199,4 +199,11 @@ enum axi_resp {
     RESP_DECERR = 3
 };
 
+enum axi_burst_type {
+    BURST_FIXED = 0,
+    BURST_INCR  = 1,
+    BURST_WRAP  = 2,
+    BURST_RESERVED  = 3
+};
+
 #endif
