@@ -20,7 +20,6 @@ class axi4_slave {
                 if (read_last && pin.rvalid) {
                     read_last = false;
                     pin.rvalid = 0;     // maybe change in the following code
-                    pin.arready = 1;    // recv new data
                     pin.rlast = 0;
                     if (addr_wait) {
                         addr_wait = false;
