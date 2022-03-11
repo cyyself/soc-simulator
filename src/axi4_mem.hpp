@@ -4,7 +4,7 @@
 #include "axi4_slave.hpp"
 
 template <unsigned int A_WIDTH = 64, unsigned int D_WIDTH = 64, unsigned int ID_WIDTH = 4>
-class axi4_mem : axi4_slave<A_WIDTH,D_WIDTH,ID_WIDTH>  {
+class axi4_mem : public axi4_slave<A_WIDTH,D_WIDTH,ID_WIDTH>  {
     public:
         axi4_mem(unsigned long size_bytes) {
             if (size_bytes % (D_WIDTH / 8)) size_bytes += 8 - (size_bytes % (D_WIDTH / 8));
@@ -18,7 +18,7 @@ class axi4_mem : axi4_slave<A_WIDTH,D_WIDTH,ID_WIDTH>  {
         ~axi4_mem() {
             delete [] mem;
         }
-    private:
+    protected:
         axi_resp do_read(unsigned long start_addr, unsigned long size, unsigned char* buffer) {
             if (start_addr + size <= mem_size) {
                 memcpy(buffer,&mem[start_addr],size);

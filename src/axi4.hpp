@@ -5,14 +5,15 @@
 #include <condition_variable>
 
 #define AUTO_SIG(name, msb, lsb) \
-    std::conditional <(msb-lsb+1) <=  8, CData, \
-    std::conditional <(msb-lsb+1) <= 16, SData, \
-    std::conditional <(msb-lsb+1) <= 32, IData, \
-    std::conditional <(msb-lsb+1) <= 64, QData, \
-    VlWide<(msb-lsb+32)/32> > > > > name
+    typename std::conditional <(msb-lsb+1) <=  8, CData, \
+    typename std::conditional <(msb-lsb+1) <= 16, SData, \
+    typename std::conditional <(msb-lsb+1) <= 32, IData, QData >::type >::type >::type name
 
 #define AUTO_IN(name, msb, lsb)  AUTO_SIG(name, msb, lsb)
 #define AUTO_OUT(name, msb, lsb) AUTO_SIG(name, msb, lsb)
+
+template <unsigned int A_WIDTH, unsigned int D_WIDTH, unsigned int ID_WIDTH>
+struct axi4;
 
 template <unsigned int A_WIDTH = 64, unsigned int D_WIDTH = 64, unsigned int ID_WIDTH = 4>
 struct axi4_ptr {
@@ -192,6 +193,7 @@ struct axi4_ref {
         rready  (*(ptr.rready))
     {}
 
+    axi4_ref(axi4 <A_WIDTH,D_WIDTH,ID_WIDTH> &axi4);
 };
 
 template <unsigned int A_WIDTH = 64, unsigned int D_WIDTH = 64, unsigned int ID_WIDTH = 4>
@@ -237,6 +239,9 @@ struct axi4 {
     AUTO_OUT(rlast      , 0, 0);
     AUTO_OUT(rvalid     , 0, 0);
     AUTO_IN (rready     , 0, 0);
+    axi4() {
+        memset(this,0,sizeof(*this));
+    }
     void update_input(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &ref) {
         // aw
         awid    = ref.awid;
@@ -284,6 +289,47 @@ struct axi4 {
         ref.rvalid  = rvalid;
     }
 };
+
+template <unsigned int A_WIDTH, unsigned int D_WIDTH, unsigned int ID_WIDTH>
+    axi4_ref<A_WIDTH,D_WIDTH,ID_WIDTH>::axi4_ref(axi4 <A_WIDTH,D_WIDTH,ID_WIDTH> &axi4):
+            awid    (axi4.awid),
+            awaddr  (axi4.awaddr),
+            awlen   (axi4.awlen),
+            awsize  (axi4.awsize),
+            awburst (axi4.awburst),
+            awlock  (axi4.awlock),
+            awcache (axi4.awcache),
+            awprot  (axi4.awprot),
+            awqos   (axi4.awqos),
+            awvalid (axi4.awvalid),
+            awready (axi4.awready),
+            wdata   (axi4.wdata),
+            wstrb   (axi4.wstrb),
+            wlast   (axi4.wlast),
+            wvalid  (axi4.wvalid),
+            wready  (axi4.wready),
+            bid     (axi4.bid),
+            bresp   (axi4.bresp),
+            bvalid  (axi4.bvalid),
+            bready  (axi4.bready),
+            arid    (axi4.arid),
+            araddr  (axi4.araddr),
+            arlen   (axi4.arlen),
+            arsize  (axi4.arsize),
+            arburst (axi4.arburst),
+            arlock  (axi4.arlock),
+            arcache (axi4.arcache),
+            arprot  (axi4.arprot),
+            arqos   (axi4.arqos),
+            arvalid (axi4.arvalid),
+            arready (axi4.arready),
+            rid     (axi4.rid),
+            rdata   (axi4.rdata),
+            rresp   (axi4.rresp),
+            rlast   (axi4.rlast),
+            rvalid  (axi4.rvalid),
+            rready  (axi4.rready)
+        {}
 
 enum axi_resp {
     RESP_OKEY   = 0,

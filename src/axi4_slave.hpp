@@ -9,8 +9,9 @@
 template <unsigned int A_WIDTH = 64, unsigned int D_WIDTH = 64, unsigned int ID_WIDTH = 4>
 class axi4_slave {
     static_assert(D_WIDTH <= 64, "D_WIDTH should be <= 64.");
+    static_assert(A_WIDTH <= 64, "A_WIDTH should be <= 64.");
     public:
-        void beat(axi4 <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
+        void beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
             if (!sync_reset) {
                 pin.arready = 1;
                 sync_reset = true;
@@ -21,17 +22,17 @@ class axi4_slave {
                     read_last = false;
                     pin.rvalid = 0;     // maybe change in the following code
                     pin.rlast = 0;
-                    if (addr_wait) {
-                        addr_wait = false;
+                    if (read_wait) {
+                        read_wait = false;
                         read_busy = true;
                     }
                 }
-                // set arready before new address come, it will change read_busy and addr_wait status
-                pin.arready = !read_busy && !addr_wait;
+                // set arready before new address come, it will change read_busy and read_wait status
+                pin.arready = !read_busy && !read_wait;
                 // check new address come
-                if (!read_busy && !addr_wait && pin.arvalid) {
-                    read_info.init(pin);
-                    if (read_last) addr_wait = true;
+                if (!read_busy && !read_wait && pin.arvalid) {
+                    read_init(pin);
+                    if (read_last) read_wait = true;
                     else read_busy = true;
                 }
                 // do read trascation
@@ -43,76 +44,75 @@ class axi4_slave {
         virtual axi_resp do_write(unsigned long start_addr, unsigned long size, const unsigned char* buffer) = 0;
     private:
         bool sync_reset = false;
-        const unsigned int D_bytes = D_WIDTH / 8;
+        unsigned int D_bytes = D_WIDTH / 8;
     private:
         bool read_busy = false; // during trascation except last
         bool read_last = false; // wait rready and free
-        bool addr_wait = false; // ar ready, but waiting the last read to ready
+        bool read_wait = false; // ar ready, but waiting the last read to ready
+        unsigned long   r_start_addr;
+        AUTO_SIG(       arid        ,ID_WIDTH-1,0);
+        axi_burst_type  r_burst_type;
+        unsigned int    r_each_len;
+        int             r_nr_trans;
+        int             r_cur_trans;
+        unsigned int    r_tot_len;
+        bool            r_out_ready;
+        bool            r_early_err;
+        axi_resp        r_resp;
+        unsigned char   r_data[4096];
 
-        struct read_info_data {
-            unsigned long   start_addr;
-            AUTO_SIG(       arid        ,ID_WIDTH-1,0);
-            axi_burst_type  burst_type;
-            unsigned int    each_len;
-            int             nr_trans;
-            int             cur_trans;
-            unsigned int    tot_len;
-            bool            out_ready;
-            bool            early_err;
-            axi_resp        resp;
-            char data[4096];
-            bool check() {
-                if (burst_type == BURST_RESERVED) return false;
-                if (burst_type == BURST_WRAP && (start_addr % tot_len)) return false;
-                unsigned long rem_addr = 4096 - (start_addr % 4096);
-                if (tot_len > rem_addr) return false;
-                if (each_len > D_WIDTH / 8) return false;
-            }
+        bool read_check() {
+            if (r_burst_type == BURST_RESERVED) return false;
+            if (r_burst_type == BURST_WRAP && (r_start_addr % r_tot_len)) return false;
+            unsigned long rem_addr = 4096 - (r_start_addr % 4096);
+            if (r_tot_len > rem_addr) return false;
+            if (r_each_len > D_WIDTH / 8) return false;
+            return true;
+        }
 
-            void read_beat(axi4 <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-                pin.rid = arid;
-                pin.rvalid  = 1;
-                bool update = false;
-                if (pin.rready || cur_trans == -1) {
-                    cur_trans += 1;
-                    update = true;
-                    if (cur_trans + 1 == nr_trans) {
-                        read_last = true;
-                        read_busy = false;
-                    }
-                }
-                pin.rlast = read_last;
-                if (update) {
-                    if (early_err) {
-                        pin.rresp = RESP_SLVERR;
-                        pin.rdata = 0;
-                    }
-                    else if (burst_type == BURST_FIXED) {
-                        pin.rresp = do_read(start_addr, tot_len, &data[start_addr % 4096]);
-                        pin.rdata = *(AUTO_SIG(*,D_WIDTH-1,0))(&data[start_addr - (start_addr % D_bytes)]);
-                    }
-                    else { // INCR, WRAP
-                        pin.rresp = resp;
-                        pin.rdata = *(AUTO_SIG(*,D_WIDTH-1,0))(&data[start_addr - (start_addr % D_bytes)]);
-                    }
+        void read_beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
+            pin.rid = arid;
+            pin.rvalid  = 1;
+            bool update = false;
+            if (pin.rready || r_cur_trans == -1) {
+                r_cur_trans += 1;
+                update = true;
+                if (r_cur_trans + 1 == r_nr_trans) {
+                    read_last = true;
+                    read_busy = false;
                 }
             }
-
-            void init(axi4 <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-                arid        = pin.arid;
-                burst_type  = pin.arburst;
-                each_len    = 1 << pin.arsize;
-                nr_trans    = pin.arlen + 1;
-                start_addr  = pin.araddr;
-                cur_trans   = -1;
-                if (burst_type == BURST_WRAP) start_addr = pin.
-                tot_len     = ( (burst_type == BURST_FIXED) ? each_len : each_len * nr_trans) - (start_addr % each_len); // first beat can be unaligned
-                early_err   = check();
-                if (!read_info.early_err && burst_type != BURST_FIXED) 
-                    read_info.resp = do_read(read_info.start_addr,each_len * nr_trans,&read_info.data[start_addr % 4096]);
+            pin.rlast = read_last;
+            if (update) {
+                if (r_early_err) {
+                    pin.rresp = RESP_SLVERR;
+                    pin.rdata = 0;
+                }
+                else if (r_burst_type == BURST_FIXED) {
+                    pin.rresp = do_read(static_cast<unsigned long>(r_start_addr), static_cast<unsigned long>(r_tot_len), &r_data[r_start_addr % 4096]);
+                    pin.rdata = *(AUTO_SIG(*,D_WIDTH-1,0))(&r_data[r_start_addr - (r_start_addr % D_bytes)]);
+                }
+                else { // INCR, WRAP
+                    pin.rresp = r_resp;
+                    pin.rdata = *(AUTO_SIG(*,D_WIDTH-1,0))(&r_data[r_start_addr - (r_start_addr % D_bytes)]);
+                }
             }
+        }
 
-        } read_info;
+        void read_init(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
+            arid            = pin.arid;
+            r_burst_type    = static_cast<axi_burst_type>(pin.arburst);
+            r_each_len      = 1 << pin.arsize;
+            r_nr_trans      = pin.arlen + 1;
+            r_start_addr    = pin.araddr;
+            r_cur_trans     = -1;
+            if (r_burst_type == BURST_WRAP) r_start_addr = pin.araddr;
+            r_tot_len       = ( (r_burst_type == BURST_FIXED) ? r_each_len : r_each_len * r_nr_trans) - (r_start_addr % r_each_len); // first beat can be unaligned
+            r_early_err     = read_check();
+            if (!r_early_err && r_burst_type != BURST_FIXED) 
+                r_resp = do_read(static_cast<unsigned long>(r_start_addr), static_cast<unsigned long>(r_each_len * r_nr_trans), &r_data[r_start_addr % 4096] );
+        }
+
     /*
     private: write
         bool write_busy = false;

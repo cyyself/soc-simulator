@@ -6,8 +6,5 @@
 #include <iostream>
 
 int main(int argc, char** argv, char** env) {
-    VChipTop *chiptop = new VChipTop;
-    axi4_ptr <64,32,4> mmio;
-    std::cout << mmio.check() << std::endl;
     return 0;
 }
