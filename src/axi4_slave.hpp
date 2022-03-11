@@ -39,11 +39,12 @@ class axi4_slave {
             }
         }
     protected:
-        virtual axi_resp do_read(AUTO_SIG(start_addr,A_WIDTH-1,0), AUTO_SIG(size,A_WIDTH-1,0), unsigned char* buffer) = NULL;
-        virtual axi_resp do_write(AUTO_SIG(start_addr,A_WIDTH-1,0), AUTO_SIG(size,A_WIDTH-1,0), unsigned char* buffer) = NULL;
+        virtual axi_resp do_read (unsigned long start_addr, unsigned long size, unsigned char* buffer) = 0;
+        virtual axi_resp do_write(unsigned long start_addr, unsigned long size, const unsigned char* buffer) = 0;
     private:
         bool sync_reset = false;
-    private: read
+        const unsigned int D_bytes = D_WIDTH / 8;
+    private:
         bool read_busy = false; // during trascation except last
         bool read_last = false; // wait rready and free
         bool addr_wait = false; // ar ready, but waiting the last read to ready
@@ -72,7 +73,7 @@ class axi4_slave {
                 pin.rid = arid;
                 pin.rvalid  = 1;
                 bool update = false;
-                if (rready || cur_trans == -1) {
+                if (pin.rready || cur_trans == -1) {
                     cur_trans += 1;
                     update = true;
                     if (cur_trans + 1 == nr_trans) {
@@ -88,11 +89,11 @@ class axi4_slave {
                     }
                     else if (burst_type == BURST_FIXED) {
                         pin.rresp = do_read(start_addr, tot_len, &data[start_addr % 4096]);
-                        pin.rdata = *(AUTO_SIG(*rdata,D_WIDTH-1,0))(&data[start_addr - (start_addr % D_bytes)]);
+                        pin.rdata = *(AUTO_SIG(*,D_WIDTH-1,0))(&data[start_addr - (start_addr % D_bytes)]);
                     }
                     else { // INCR, WRAP
                         pin.rresp = resp;
-                        pin.rdata = *(AUTO_SIG(*rdata,D_WIDTH-1,0))(&data[start_addr - (start_addr % D_bytes)]);
+                        pin.rdata = *(AUTO_SIG(*,D_WIDTH-1,0))(&data[start_addr - (start_addr % D_bytes)]);
                     }
                 }
             }
@@ -112,9 +113,9 @@ class axi4_slave {
             }
 
         } read_info;
+    /*
     private: write
         bool write_busy = false;
-        const unsigned int D_bytes = D_WIDTH / 8;
         struct bresp_each {
             AUTO_OUT(bid    ,ID_WIDTH-1,0);
             AUTO_OUT(bresp  ,ID_WIDTH-1,0);
@@ -141,6 +142,7 @@ class axi4_slave {
                 pin.bready = 1;
             }
         }
+        */
 };
 
 #endif

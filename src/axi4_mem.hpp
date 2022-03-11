@@ -19,15 +19,19 @@ class axi4_mem : axi4_slave<A_WIDTH,D_WIDTH,ID_WIDTH>  {
             delete [] mem;
         }
     private:
-        axi_resp do_read(AUTO_SIG(start_addr,A_WIDTH-1,0), AUTO_SIG(size,A_WIDTH-1,0), unsigned char* buffer) {
+        axi_resp do_read(unsigned long start_addr, unsigned long size, unsigned char* buffer) {
             if (start_addr + size <= mem_size) {
                 memcpy(buffer,&mem[start_addr],size);
                 return RESP_OKEY;
             }
-            else {
-                memset(buffer,0xcc,size);
-                return RESP_SLVERR;
+            else return RESP_SLVERR;
+        }
+        axi_resp do_write(unsigned long start_addr, unsigned long size, const unsigned char* buffer) {
+            if (start_addr + size <= mem_size) {
+                memcpy(&mem[start_addr],buffer,size);
+                return RESP_OKEY;
             }
+            else return RESP_SLVERR;
         }
         unsigned char *mem;
         unsigned long mem_size;

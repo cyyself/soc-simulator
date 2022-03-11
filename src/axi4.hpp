@@ -1,7 +1,8 @@
 #ifndef AXI4_HPP
 #define AXI4_HPP
 
-#include "verilated.h"
+#include <verilated.h>
+#include <condition_variable>
 
 #define AUTO_SIG(name, msb, lsb) \
     std::conditional <(msb-lsb+1) <=  8, CData, \
@@ -13,7 +14,6 @@
 #define AUTO_IN(name, msb, lsb)  AUTO_SIG(name, msb, lsb)
 #define AUTO_OUT(name, msb, lsb) AUTO_SIG(name, msb, lsb)
 
-
 template <unsigned int A_WIDTH = 64, unsigned int D_WIDTH = 64, unsigned int ID_WIDTH = 4>
 struct axi4_ptr {
     static_assert(__builtin_popcount(D_WIDTH) == 1,"D_WIDTH should be the power of 2.");
@@ -21,7 +21,7 @@ struct axi4_ptr {
     // aw
     AUTO_IN (*awid      ,ID_WIDTH-1, 0)     = NULL;
     AUTO_IN (*awaddr    ,A_WIDTH-1, 0)      = NULL;
-    AUTO_IN (*awlen     ,7, 0)              = NULL;
+    AUTO_IN (*awlen     , 7, 0)             = NULL;
     AUTO_IN (*awsize    , 2, 0)             = NULL;
     AUTO_IN (*awburst   , 1, 0)             = NULL;
     AUTO_IN (*awlock    , 0, 0)             = NULL;
@@ -108,11 +108,12 @@ struct axi4_ptr {
     }
 };
 
+
 template <unsigned int A_WIDTH = 64, unsigned int D_WIDTH = 64, unsigned int ID_WIDTH = 4>
-struct axi4 {
+struct axi4_ref {
     AUTO_IN (&awid      ,ID_WIDTH-1, 0);
     AUTO_IN (&awaddr    ,A_WIDTH-1, 0);
-    AUTO_IN (&awlen     ,7, 0);
+    AUTO_IN (&awlen     , 7, 0);
     AUTO_IN (&awsize    , 2, 0);
     AUTO_IN (&awburst   , 1, 0);
     AUTO_IN (&awlock    , 0, 0);
@@ -151,7 +152,7 @@ struct axi4 {
     AUTO_OUT(&rlast     , 0, 0);
     AUTO_OUT(&rvalid    , 0, 0);
     AUTO_IN (&rready    , 0, 0);
-    axi4(axi4_ptr <A_WIDTH,D_WIDTH,ID_WIDTH> ptr):
+    axi4_ref(axi4_ptr <A_WIDTH,D_WIDTH,ID_WIDTH> &ptr):
         awid    (*(ptr.awid)),
         awaddr  (*(ptr.awaddr)),
         awlen   (*(ptr.awlen)),
@@ -190,6 +191,98 @@ struct axi4 {
         rvalid  (*(ptr.rvalid)),
         rready  (*(ptr.rready))
     {}
+
+};
+
+template <unsigned int A_WIDTH = 64, unsigned int D_WIDTH = 64, unsigned int ID_WIDTH = 4>
+struct axi4 {
+    AUTO_IN (awid       ,ID_WIDTH-1, 0);
+    AUTO_IN (awaddr     ,A_WIDTH-1, 0);
+    AUTO_IN (awlen      , 7, 0);
+    AUTO_IN (awsize     , 2, 0);
+    AUTO_IN (awburst    , 1, 0);
+    AUTO_IN (awlock     , 0, 0);
+    AUTO_IN (awcache    , 3, 0);
+    AUTO_IN (awprot     , 2, 0);
+    AUTO_IN (awqos      , 3, 0);
+    AUTO_IN (awvalid    , 0, 0);
+    AUTO_OUT(awready    , 0, 0);
+    // w
+    AUTO_IN (wdata      ,D_WIDTH-1, 0);
+    AUTO_IN (wstrb      ,(D_WIDTH/8)-1, 0);
+    AUTO_IN (wlast      , 0, 0);
+    AUTO_IN (wvalid     , 0, 0);
+    AUTO_OUT(wready     , 0, 0);
+    // b
+    AUTO_OUT(bid        ,ID_WIDTH-1, 0);
+    AUTO_OUT(bresp      , 1, 0);
+    AUTO_OUT(bvalid     , 0, 0);
+    AUTO_IN (bready     , 0, 0);
+    // ar
+    AUTO_IN (arid       ,ID_WIDTH-1, 0);
+    AUTO_IN (araddr     ,A_WIDTH-1, 0);
+    AUTO_IN (arlen      ,(D_WIDTH/8)-1, 0);
+    AUTO_IN (arsize     , 2, 0);
+    AUTO_IN (arburst    , 1, 0);
+    AUTO_IN (arlock     , 0, 0);
+    AUTO_IN (arcache    , 3, 0);
+    AUTO_IN (arprot     , 2, 0);
+    AUTO_IN (arqos      , 3, 0);
+    AUTO_IN (arvalid    , 0, 0);
+    AUTO_OUT(arready    , 0, 0);
+    // r
+    AUTO_OUT(rid        ,ID_WIDTH-1, 0);
+    AUTO_OUT(rdata      ,D_WIDTH-1, 0);
+    AUTO_OUT(rresp      , 1, 0);
+    AUTO_OUT(rlast      , 0, 0);
+    AUTO_OUT(rvalid     , 0, 0);
+    AUTO_IN (rready     , 0, 0);
+    void update_input(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &ref) {
+        // aw
+        awid    = ref.awid;
+        awaddr  = ref.awaddr;
+        awlen   = ref.awlen;
+        awsize  = ref.awsize;
+        awburst = ref.awburst;
+        awlock  = ref.awlock;
+        awcache = ref.awcache;
+        awprot  = ref.awprot;
+        awqos   = ref.awqos;
+        awvalid = ref.awvalid;
+        // w
+        wdata   = ref.wdata;
+        wstrb   = ref.wstrb;
+        wlast   = ref.wlast;
+        wvalid  = ref.wvalid;
+        // b
+        bready  = ref.bready;
+        // arid
+        arid    = ref.arid;
+        araddr  = ref.araddr;
+        arlen   = ref.arlen;
+        arsize  = ref.arsize;
+        arburst = ref.arburst;
+        arlock  = ref.arlock;
+        arcache = ref.arcache;
+        arprot  = ref.arprot;
+        arqos   = ref.arqos;
+        arvalid = ref.arvalid;
+        // r
+        rready  = ref.rready;
+    }
+    void update_output(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &ref) {
+        ref.awready = awready;
+        ref.wready  = wready;
+        ref.bid     = bid;
+        ref.bresp   = bresp;
+        ref.bvalid  = bvalid;
+        ref.arready = arready;
+        ref.rid     = rid;
+        ref.rdata   = rdata;
+        ref.rresp   = rresp;
+        ref.rlast   = rlast;
+        ref.rvalid  = rvalid;
+    }
 };
 
 enum axi_resp {
