@@ -108,7 +108,7 @@ class axi4_slave {
             r_cur_trans     = -1;
             if (r_burst_type == BURST_WRAP) r_start_addr = pin.araddr;
             r_tot_len       = ( (r_burst_type == BURST_FIXED) ? r_each_len : r_each_len * r_nr_trans) - (r_start_addr % r_each_len); // first beat can be unaligned
-            r_early_err     = read_check();
+            r_early_err     = !read_check();
             if (!r_early_err && r_burst_type != BURST_FIXED) 
                 r_resp = do_read(static_cast<unsigned long>(r_start_addr), static_cast<unsigned long>(r_each_len * r_nr_trans), &r_data[r_start_addr % 4096] );
         }
