@@ -25,19 +25,21 @@ void dump_axi_read(axi4_ref<64,64,4> &axi) {
 }
 
 int main() {
-    
     axi4_mem<64,64,4> mem(8192);
     axi4<64,64,4> axi;
     axi4_ref<64,64,4> axi_ref(axi);
     axi_ref.arid = 0xa;
     axi_ref.araddr = 0;
-    axi_ref.arlen = 1;
+    axi_ref.arlen = 3;
     axi_ref.arsize = 3;
-    axi_ref.arburst = BURST_INCR;
+    axi_ref.arburst = BURST_FIXED;
     axi_ref.arvalid = 1;
+    axi_ref.rready = 1;
+    mem.beat(axi_ref); // reset
     for (int i=0;i<10;i++) {
         mem.beat(axi_ref);
         dump_axi_read(axi_ref);
+        printf("----------\n");
     }
     return 0;
 }

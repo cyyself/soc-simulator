@@ -20,6 +20,7 @@ class axi4_mem : public axi4_slave<A_WIDTH,D_WIDTH,ID_WIDTH>  {
         }
     protected:
         axi_resp do_read(unsigned long start_addr, unsigned long size, unsigned char* buffer) {
+            printf("-----do read from %lu to %lu\n",start_addr,size);
             if (start_addr + size <= mem_size) {
                 memcpy(buffer,&mem[start_addr],size);
                 return RESP_OKEY;
