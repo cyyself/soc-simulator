@@ -201,36 +201,6 @@ class axi4_slave {
                 write_beat(pin);
             }
         }
-    /*
-    private: write
-        bool write_busy = false;
-        struct bresp_each {
-            AUTO_OUT(bid    ,ID_WIDTH-1,0);
-            AUTO_OUT(bresp  ,ID_WIDTH-1,0);
-        };
-        struct bresp_info_data {
-            std::queue <bresp_each> queue;
-            bool wait_ready = false;
-        } bresp_info;
-        void write_beat(axi4 <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-
-        }
-        void bresp_beat(axi4 <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-            if (bresp_info.wait_ready) {
-                if (pin.bready) {
-                    bresp_info.wait_ready = false;
-                    pin.bvalid = 0;
-                    queue.pop();
-                }
-            }
-            else if (!bresp_info.queue.empty()) {
-                bresp_each bresp_data = bresp_info.queue.front();
-                pin.bid = bresp_data.bid; 
-                pin.bresp = bresp_data.bresp;
-                pin.bready = 1;
-            }
-        }
-        */
 };
 
 #endif
