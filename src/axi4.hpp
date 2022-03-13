@@ -25,10 +25,6 @@ struct axi4_ptr {
     AUTO_IN (*awlen     , 7, 0)             = NULL;
     AUTO_IN (*awsize    , 2, 0)             = NULL;
     AUTO_IN (*awburst   , 1, 0)             = NULL;
-    AUTO_IN (*awlock    , 0, 0)             = NULL;
-    AUTO_IN (*awcache   , 3, 0)             = NULL;
-    AUTO_IN (*awprot    , 2, 0)             = NULL;
-    AUTO_IN (*awqos     , 3, 0)             = NULL;
     AUTO_IN (*awvalid   , 0, 0)             = NULL;
     AUTO_OUT(*awready   , 0, 0)             = NULL;
     // w
@@ -48,10 +44,6 @@ struct axi4_ptr {
     AUTO_IN (*arlen     ,(D_WIDTH/8)-1, 0)  = NULL;
     AUTO_IN (*arsize    , 2, 0)             = NULL;
     AUTO_IN (*arburst   , 1, 0)             = NULL;
-    AUTO_IN (*arlock    , 0, 0)             = NULL;
-    AUTO_IN (*arcache   , 3, 0)             = NULL;
-    AUTO_IN (*arprot    , 2, 0)             = NULL;
-    AUTO_IN (*arqos     , 3, 0)             = NULL;
     AUTO_IN (*arvalid   , 0, 0)             = NULL;
     AUTO_OUT(*arready   , 0, 0)             = NULL;
     // r
@@ -69,10 +61,6 @@ struct axi4_ptr {
         s.insert((void*)awlen);
         s.insert((void*)awsize);
         s.insert((void*)awburst);
-        s.insert((void*)awlock);
-        s.insert((void*)awcache);
-        s.insert((void*)awprot);
-        s.insert((void*)awqos);
         s.insert((void*)awvalid);
         s.insert((void*)awready);
         // w
@@ -92,10 +80,6 @@ struct axi4_ptr {
         s.insert((void*)arlen);
         s.insert((void*)arsize);
         s.insert((void*)arburst);
-        s.insert((void*)arlock);
-        s.insert((void*)arcache);
-        s.insert((void*)arprot);
-        s.insert((void*)arqos);
         s.insert((void*)arvalid);
         s.insert((void*)arready);
         // r
@@ -117,10 +101,6 @@ struct axi4_ref {
     AUTO_IN (&awlen     , 7, 0);
     AUTO_IN (&awsize    , 2, 0);
     AUTO_IN (&awburst   , 1, 0);
-    AUTO_IN (&awlock    , 0, 0);
-    AUTO_IN (&awcache   , 3, 0);
-    AUTO_IN (&awprot    , 2, 0);
-    AUTO_IN (&awqos     , 3, 0);
     AUTO_IN (&awvalid   , 0, 0);
     AUTO_OUT(&awready   , 0, 0);
     // w
@@ -140,10 +120,6 @@ struct axi4_ref {
     AUTO_IN (&arlen     ,(D_WIDTH/8)-1, 0);
     AUTO_IN (&arsize    , 2, 0);
     AUTO_IN (&arburst   , 1, 0);
-    AUTO_IN (&arlock    , 0, 0);
-    AUTO_IN (&arcache   , 3, 0);
-    AUTO_IN (&arprot    , 2, 0);
-    AUTO_IN (&arqos     , 3, 0);
     AUTO_IN (&arvalid   , 0, 0);
     AUTO_OUT(&arready   , 0, 0);
     // r
@@ -159,10 +135,6 @@ struct axi4_ref {
         awlen   (*(ptr.awlen)),
         awsize  (*(ptr.awsize)),
         awburst (*(ptr.awburst)),
-        awlock  (*(ptr.awlock)),
-        awcache (*(ptr.awcache)),
-        awprot  (*(ptr.awprot)),
-        awqos   (*(ptr.awqos)),
         awvalid (*(ptr.awvalid)),
         awready (*(ptr.awready)),
         wdata   (*(ptr.wdata)),
@@ -179,10 +151,6 @@ struct axi4_ref {
         arlen   (*(ptr.arlen)),
         arsize  (*(ptr.arsize)),
         arburst (*(ptr.arburst)),
-        arlock  (*(ptr.arlock)),
-        arcache (*(ptr.arcache)),
-        arprot  (*(ptr.arprot)),
-        arqos   (*(ptr.arqos)),
         arvalid (*(ptr.arvalid)),
         arready (*(ptr.arready)),
         rid     (*(ptr.rid)),
@@ -203,10 +171,6 @@ struct axi4 {
     AUTO_IN (awlen      , 7, 0);
     AUTO_IN (awsize     , 2, 0);
     AUTO_IN (awburst    , 1, 0);
-    AUTO_IN (awlock     , 0, 0);
-    AUTO_IN (awcache    , 3, 0);
-    AUTO_IN (awprot     , 2, 0);
-    AUTO_IN (awqos      , 3, 0);
     AUTO_IN (awvalid    , 0, 0);
     AUTO_OUT(awready    , 0, 0);
     // w
@@ -226,10 +190,6 @@ struct axi4 {
     AUTO_IN (arlen      ,(D_WIDTH/8)-1, 0);
     AUTO_IN (arsize     , 2, 0);
     AUTO_IN (arburst    , 1, 0);
-    AUTO_IN (arlock     , 0, 0);
-    AUTO_IN (arcache    , 3, 0);
-    AUTO_IN (arprot     , 2, 0);
-    AUTO_IN (arqos      , 3, 0);
     AUTO_IN (arvalid    , 0, 0);
     AUTO_OUT(arready    , 0, 0);
     // r
@@ -249,10 +209,6 @@ struct axi4 {
         awlen   = ref.awlen;
         awsize  = ref.awsize;
         awburst = ref.awburst;
-        awlock  = ref.awlock;
-        awcache = ref.awcache;
-        awprot  = ref.awprot;
-        awqos   = ref.awqos;
         awvalid = ref.awvalid;
         // w
         wdata   = ref.wdata;
@@ -267,10 +223,6 @@ struct axi4 {
         arlen   = ref.arlen;
         arsize  = ref.arsize;
         arburst = ref.arburst;
-        arlock  = ref.arlock;
-        arcache = ref.arcache;
-        arprot  = ref.arprot;
-        arqos   = ref.arqos;
         arvalid = ref.arvalid;
         // r
         rready  = ref.rready;
@@ -297,10 +249,6 @@ template <unsigned int A_WIDTH, unsigned int D_WIDTH, unsigned int ID_WIDTH>
             awlen   (axi4.awlen),
             awsize  (axi4.awsize),
             awburst (axi4.awburst),
-            awlock  (axi4.awlock),
-            awcache (axi4.awcache),
-            awprot  (axi4.awprot),
-            awqos   (axi4.awqos),
             awvalid (axi4.awvalid),
             awready (axi4.awready),
             wdata   (axi4.wdata),
@@ -317,10 +265,6 @@ template <unsigned int A_WIDTH, unsigned int D_WIDTH, unsigned int ID_WIDTH>
             arlen   (axi4.arlen),
             arsize  (axi4.arsize),
             arburst (axi4.arburst),
-            arlock  (axi4.arlock),
-            arcache (axi4.arcache),
-            arprot  (axi4.arprot),
-            arqos   (axi4.arqos),
             arvalid (axi4.arvalid),
             arready (axi4.arready),
             rid     (axi4.rid),
