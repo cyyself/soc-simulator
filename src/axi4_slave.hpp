@@ -67,11 +67,13 @@ class axi4_slave {
                 }
                 else if (r_burst_type == BURST_FIXED) {
                     pin.rresp = do_read(static_cast<unsigned long>(r_start_addr), static_cast<unsigned long>(r_tot_len), &r_data[r_start_addr % 4096]);
-                    pin.rdata = *(AUTO_SIG(*,D_WIDTH-1,0))(&r_data[r_start_addr - (r_start_addr % D_bytes)]);
+                    pin.rdata = *(AUTO_SIG(*,D_WIDTH-1,0))(&r_data[(r_start_addr % 4096) - (r_start_addr % D_bytes)]);
                 }
                 else { // INCR, WRAP
                     pin.rresp = r_resp;
-                    pin.rdata = *(AUTO_SIG(*,D_WIDTH-1,0))(&r_data[r_start_addr - (r_start_addr % D_bytes)]);
+                    unsigned long cur_align_addr = (r_start_addr % 4096) - (r_start_addr % D_bytes) + (r_cur_trans - 1) * r_each_len;
+                    cur_align_addr -= cur_align_addr % D_bytes;
+                    pin.rdata = *(AUTO_SIG(*,D_WIDTH-1,0))(&r_data[cur_align_addr]);
                 }
             }
         }
@@ -160,21 +162,28 @@ class axi4_slave {
             return res;
         }
         void write_beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-            if (pin.wready) {
+            if (pin.wvalid) {
                 w_cur_trans += 1;
                 if (w_cur_trans == w_nr_trans) {
                     write_busy = false;
                     b_busy = true;
-                    if (!pin.wlast) w_early_err = true;
+                    /*
+                    if (!pin.wlast) {
+                        w_early_err = true;
+                        assert(false);
+                    }
+                    */
                 }
-                unsigned long addr_base = w_start_addr - (w_start_addr % w_each_len);
+                if (w_early_err) return;
+                unsigned long addr_base = w_cur_trans == 1 ? w_start_addr : (w_start_addr - (w_start_addr % w_each_len) + (w_cur_trans - 1) * w_each_len);
                 unsigned long in_data_pos = addr_base % D_bytes;
-                std::vector<std::pair<int,int> > range = strb_to_range(pin.wstrb,in_data_pos,in_data_pos+w_each_len);
+                unsigned long rem_data_pos = w_each_len - (in_data_pos % w_each_len);
+                std::vector<std::pair<int,int> > range = strb_to_range(pin.wstrb,in_data_pos,in_data_pos+rem_data_pos);
                 for (std::pair<int,int> sub_range : range) {
                     int &addr = sub_range.first;
                     int &len  = sub_range.second;
                     memcpy(w_buffer,&(pin.wdata),sizeof(pin.wdata));
-                    w_resp = static_cast<axi_resp>(static_cast<int>(w_resp) | static_cast<int>(do_write(addr_base+addr,len,w_buffer+in_data_pos+len)));
+                    w_resp = static_cast<axi_resp>(static_cast<int>(w_resp) | static_cast<int>(do_write(addr_base+addr,len,w_buffer+in_data_pos)));
                 }
             }
         }
@@ -191,11 +200,11 @@ class axi4_slave {
                 b_beat(pin);
             }
             if (!write_busy && !b_busy) {
-                if (pin.awvalid && pin.wvalid) {
+                if (pin.awvalid) {
                     pin.awready = 1;
+                    write_init(pin);
+                    write_busy = true;
                 }
-                write_init(pin);
-                write_busy = true;
             }
             if (write_busy) {
                 write_beat(pin);

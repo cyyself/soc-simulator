@@ -89,7 +89,7 @@ struct axi4_ptr {
         s.insert((void*)rlast);
         s.insert((void*)rvalid);
         s.insert((void*)rready);
-        return s.size() == 37 && s.count(NULL) == 0;
+        return s.size() == 29 && s.count(NULL) == 0;
     }
 };
 
