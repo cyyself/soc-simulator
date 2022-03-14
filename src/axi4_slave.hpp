@@ -63,7 +63,7 @@ class axi4_slave {
             pin.rlast = read_last;
             if (update) {
                 if (r_early_err) {
-                    pin.rresp = RESP_SLVERR;
+                    pin.rresp = RESP_DECERR;
                     pin.rdata = 0;
                 }
                 else if (r_burst_type == BURST_FIXED) {
@@ -88,6 +88,7 @@ class axi4_slave {
             r_cur_trans     = 0;
             r_tot_len       = ( (r_burst_type == BURST_FIXED) ? r_each_len : r_each_len * r_nr_trans) - (r_start_addr % r_each_len); // first beat can be unaligned
             r_early_err     = !read_check();
+            assert(!r_early_err);
             // clear unused bits.
             if (r_start_addr % D_bytes) {
                 unsigned long clear_addr = r_start_addr % 4096;
@@ -115,21 +116,21 @@ class axi4_slave {
                 }
             }
             // Read step 2. set arready before new address come, it will change read_busy and read_wait status
-            pin.arready = !read_busy && !read_wait && !last_arready;
+            pin.arready = !read_busy && !read_wait;
             // Read step 3. check new address come
-            if (!read_busy && !read_wait && pin.arvalid && !last_arready) {
+            if (last_arready && pin.arvalid) {
                 read_init(pin);
                 if (read_last) read_wait = true;
                 else read_busy = true;
-                last_arready = true;
             }
-            else last_arready = false;
+            last_arready = pin.arready;
             // Read step 4. do read trascation
             if (read_busy) read_beat(pin);
         }
     private:
         bool write_busy = false;
         bool b_busy     = false;
+        bool last_awready = false;
         unsigned int    w_start_addr;
         AUTO_SIG(       awid        ,ID_WIDTH-1,0);
         axi_burst_type  w_burst_type;
@@ -158,6 +159,7 @@ class axi4_slave {
             w_cur_trans     = 0;
             w_tot_len       = w_each_len * w_nr_trans - (w_start_addr % w_each_len);
             w_early_err     = !write_check();
+            assert(!w_early_err);
             w_resp          = RESP_OKEY;
         }
         // pair<start,len>
@@ -177,20 +179,20 @@ class axi4_slave {
         }
         void write_beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
             if (pin.wvalid) {
+                pin.wready = 1;
                 w_cur_trans += 1;
                 if (w_cur_trans == w_nr_trans) {
                     write_busy = false;
                     b_busy = true;
-                    /*
                     if (!pin.wlast) {
                         w_early_err = true;
                         assert(false);
                     }
-                    */
                 }
                 if (w_early_err) return;
                 unsigned long addr_base = w_cur_trans == 1 ? w_start_addr : (w_start_addr - (w_start_addr % w_each_len) + (w_cur_trans - 1) * w_each_len);
                 unsigned long in_data_pos = addr_base % D_bytes;
+                addr_base -= addr_base % D_bytes;
                 unsigned long rem_data_pos = w_each_len - (in_data_pos % w_each_len);
                 std::vector<std::pair<int,int> > range = strb_to_range(pin.wstrb,in_data_pos,in_data_pos+rem_data_pos);
                 for (std::pair<int,int> sub_range : range) {
@@ -203,23 +205,23 @@ class axi4_slave {
         }
         void b_beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
             pin.bid = awid;
-            pin.bresp = w_early_err ? RESP_SLVERR : w_resp;
+            pin.bresp = w_early_err ? RESP_DECERR : w_resp;
             if (pin.bready) b_busy = false;
         }
         void write_channel(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-            pin.wready = 1;
+            pin.wready = 0;
             pin.awready = 0; // initial set to zero
             pin.bvalid = b_busy;
             if (b_busy) {
                 b_beat(pin);
             }
-            if (!write_busy && !b_busy) {
-                if (pin.awvalid) {
-                    pin.awready = 1;
-                    write_init(pin);
-                    write_busy = true;
-                }
+            if (!write_busy && !b_busy && !last_awready && pin.awvalid) {
+                pin.awready = 1;
+                write_init(pin);
+                write_busy = true;
+                last_awready = true;
             }
+            else last_awready = false;
             if (write_busy) {
                 write_beat(pin);
             }
