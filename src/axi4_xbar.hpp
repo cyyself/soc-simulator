@@ -19,14 +19,14 @@ public:
         // check range
         auto it = devices.upper_bound(addr_range);
         if (it != devices.end()) {
-            unsigned long l_max = std::max(it->first.second,addr_range.second);
-            unsigned long r_min = std::min(it->first.first,addr_range.first);
+            unsigned long l_max = std::max(it->first.first,addr_range.first);
+            unsigned long r_min = std::min(it->first.second,addr_range.second);
             if (r_min < l_max) return false; // overleap
         }
         if (it != devices.begin()) {
             it = std::prev(it);
-            unsigned long l_max = std::max(it->first.second,addr_range.second);
-            unsigned long r_min = std::min(it->first.first,addr_range.first);
+            unsigned long l_max = std::max(it->first.first,addr_range.first);
+            unsigned long r_min = std::min(it->first.second,addr_range.second);
             if (r_min < l_max) return false; // overleap
         }
         // overleap check pass
@@ -35,7 +35,8 @@ public:
     }
     protected:
         axi_resp do_read(unsigned long start_addr, unsigned long size, unsigned char* buffer) {
-            printf("mmio read %lx size %lu\n",start_addr,size);
+            //printf("mmio read %lx size %lu\n",start_addr,size);
+            //fflush(stdout);
             auto it = devices.upper_bound(std::make_pair(start_addr,ULONG_MAX));
             if (it == devices.begin()) return RESP_DECERR;
             it = std::prev(it);
@@ -47,7 +48,8 @@ public:
             else return RESP_DECERR;
         }
         axi_resp do_write(unsigned long start_addr, unsigned long size, const unsigned char* buffer) {
-            printf("mmio write %lx size %lu\n",start_addr,size);
+            //printf("mmio write %lx size %lu\n",start_addr,size);
+            //fflush(stdout);
             auto it = devices.upper_bound(std::make_pair(start_addr,ULONG_MAX));
             if (it == devices.begin()) return RESP_DECERR;
             it = std::prev(it);

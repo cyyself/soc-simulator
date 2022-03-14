@@ -6,6 +6,7 @@
 #include "axi4_mem.hpp"
 #include "axi4_xbar.hpp"
 #include "mmio_mem.hpp"
+#include "uartlite.hpp"
 
 #include <iostream>
 
@@ -83,13 +84,21 @@ void connect_wire(axi4_ptr <31,64,4> &mmio_ptr, axi4_ptr <33,64,4> &mem_ptr, VCh
     mem_ptr.rvalid  = &(top->axi4_mem_0_bits_r_valid);
 }
 
+bool trace_on = false;
+
 int main(int argc, char** argv, char** env) {
     Verilated::commandArgs(argc, argv);
+    Verilated::traceEverOn(true);
+    VerilatedVcdC vcd;
     VChipTop *top = new VChipTop;
+    top->trace(&vcd,0);
+    vcd.open("trace.vcd");
     axi4_ptr <31,64,4> mmio_ptr;
     axi4_ptr <33,64,4> mem_ptr;
 
     connect_wire(mmio_ptr,mem_ptr,top);
+    assert(mmio_ptr.check());
+    assert(mem_ptr.check());
     
     axi4_ref <31,64,4> mmio_ref(mmio_ptr);
     axi4     <31,64,4> mmio_sigs;
@@ -97,8 +106,10 @@ int main(int argc, char** argv, char** env) {
     axi4_xbar<31,64,4> mmio;
 
     mmio_mem           bootram(1024*1024,"../u-boot/u-boot.bin");
-    mmio.add_dev(0x60000000,1024*1024,&bootram);
-    
+    uartlite           uart;
+    assert(mmio.add_dev(0x60000000,1024*1024,&bootram));
+    assert(mmio.add_dev(0x60100000,1024*1024,&uart));
+
     axi4_ref <33,64,4> mem_ref(mem_ptr);
     axi4     <33,64,4> mem_sigs;
     axi4_ref <33,64,4> mem_sigs_ref(mem_sigs);
@@ -106,22 +117,34 @@ int main(int argc, char** argv, char** env) {
     
     top->reset = 1;
     unsigned long ticks = 0;
-    while (!Verilated::gotFinish()) {
+    unsigned long max_trace_ticks = 1000;
+    while (!Verilated::gotFinish() && max_trace_ticks) {
         top->eval();
-        if (ticks == 10) top->reset = 0;
+        ticks ++;
+        if (trace_on) {
+            vcd.dump(ticks);
+            max_trace_ticks --;
+        }
+        if (ticks == 9) top->reset = 0;
         top->clock_clock = 1;
         // posedge
         mmio_sigs.update_input(mmio_ref);
         mem_sigs.update_input(mem_ref);
         top->eval();
+        ticks ++;
         if (!top->reset) {
             mem.beat(mem_sigs_ref);
             mmio.beat(mmio_sigs_ref);
         }
         mmio_sigs.update_output(mmio_ref);
         mem_sigs.update_output(mem_ref);
+        if (trace_on) {
+            vcd.dump(ticks);
+            max_trace_ticks --;
+        }
         top->clock_clock = 0;
-        ticks ++;
     }
+    if (trace_on) vcd.close();
+    top->final();
     return 0;
 }
