@@ -26,6 +26,7 @@ class axi4_slave {
         bool read_busy = false; // during trascation except last
         bool read_last = false; // wait rready and free
         bool read_wait = false; // ar ready, but waiting the last read to ready
+        bool last_arready = false;
         unsigned long   r_start_addr;
         AUTO_SIG(       arid        ,ID_WIDTH-1,0);
         axi_burst_type  r_burst_type;
@@ -103,13 +104,15 @@ class axi4_slave {
                 }
             }
             // Read step 2. set arready before new address come, it will change read_busy and read_wait status
-            pin.arready = !read_busy && !read_wait;
+            pin.arready = !read_busy && !read_wait && !last_arready;
             // Read step 3. check new address come
-            if (!read_busy && !read_wait && pin.arvalid) {
+            if (!read_busy && !read_wait && pin.arvalid && !last_arready) {
                 read_init(pin);
                 if (read_last) read_wait = true;
                 else read_busy = true;
+                last_arready = true;
             }
+            else last_arready = false;
             // Read step 4. do read trascation
             if (read_busy) read_beat(pin);
         }
