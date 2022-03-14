@@ -26,7 +26,7 @@ class axi4_slave {
         bool read_busy = false; // during trascation except last
         bool read_last = false; // wait rready and free
         bool read_wait = false; // ar ready, but waiting the last read to ready
-        bool last_arready = false;
+        bool last_arready = false; // avoid dup handshake
         unsigned long   r_start_addr;
         AUTO_SIG(       arid        ,ID_WIDTH-1,0);
         axi_burst_type  r_burst_type;
@@ -88,6 +88,17 @@ class axi4_slave {
             r_cur_trans     = 0;
             r_tot_len       = ( (r_burst_type == BURST_FIXED) ? r_each_len : r_each_len * r_nr_trans) - (r_start_addr % r_each_len); // first beat can be unaligned
             r_early_err     = !read_check();
+            // clear unused bits.
+            if (r_start_addr % D_bytes) {
+                unsigned long clear_addr = r_start_addr % 4096;
+                clear_addr -= clear_addr % D_bytes;
+                memset(&r_data[clear_addr],0x00,D_bytes);
+            }
+            if ((r_start_addr + r_tot_len) % D_bytes) {
+                unsigned long clear_addr = (r_start_addr + r_tot_len) % 4096;
+                clear_addr -= (clear_addr % D_bytes);
+                memset(&r_data[clear_addr],0x00,D_bytes);
+            }
             if (!r_early_err && r_burst_type != BURST_FIXED) 
                 r_resp = do_read(static_cast<unsigned long>(r_start_addr), static_cast<unsigned long>(r_tot_len), &r_data[r_start_addr % 4096] );
         }
