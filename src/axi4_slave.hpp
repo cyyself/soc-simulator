@@ -202,13 +202,9 @@ class axi4_slave {
         void b_beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
             pin.bid = awid;
             pin.bresp = w_early_err ? RESP_DECERR : w_resp;
-            if (pin.bready) b_busy = false;
+            if (pin.bvalid && pin.bready) b_busy = false;
         }
         void write_channel(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-            pin.bvalid = b_busy;
-            if (b_busy) {
-                b_beat(pin);
-            }
             if (pin.awready && pin.awvalid) {
                 write_init(pin);
                 write_busy = true;
@@ -216,6 +212,10 @@ class axi4_slave {
             if (write_busy) {
                 write_beat(pin);
             }
+            if (b_busy) {
+                b_beat(pin);
+            }
+            pin.bvalid = b_busy;
             pin.awready = !write_busy && !b_busy;
             pin.wready  = !b_busy;
         }
