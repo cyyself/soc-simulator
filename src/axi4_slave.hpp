@@ -128,7 +128,6 @@ class axi4_slave {
     private:
         bool write_busy = false;
         bool b_busy     = false;
-        bool last_awready = false;
         unsigned int    w_start_addr;
         AUTO_SIG(       awid        ,ID_WIDTH-1,0);
         axi_burst_type  w_burst_type;
@@ -176,7 +175,7 @@ class axi4_slave {
             return res;
         }
         void write_beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-            if (pin.wvalid) {
+            if (pin.wvalid && pin.wready) {
                 pin.wready = 1;
                 w_cur_trans += 1;
                 if (w_cur_trans == w_nr_trans) {
@@ -207,22 +206,21 @@ class axi4_slave {
             if (pin.bready) b_busy = false;
         }
         void write_channel(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-            pin.wready = 0;
-            pin.awready = 0; // initial set to zero
             pin.bvalid = b_busy;
             if (b_busy) {
                 b_beat(pin);
             }
-            if (!write_busy && !b_busy && !last_awready && pin.awvalid) {
-                pin.awready = 1;
+            if (pin.awready && pin.awvalid) {
                 write_init(pin);
                 write_busy = true;
-                last_awready = true;
+                pin.wready = 1;
+                return;
             }
-            else last_awready = false;
             if (write_busy) {
                 write_beat(pin);
             }
+            pin.awready = !write_busy && !b_busy;
+            pin.wready  = !b_busy;
         }
 };
 
