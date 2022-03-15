@@ -117,8 +117,8 @@ int main(int argc, char** argv, char** env) {
     
     top->reset = 1;
     unsigned long ticks = 0;
-    unsigned long max_trace_ticks = 1000;
-    while (!Verilated::gotFinish() && max_trace_ticks) {
+    long max_trace_ticks = 1000;
+    while (!Verilated::gotFinish() && max_trace_ticks > 0) {
         top->eval();
         ticks ++;
         if (trace_on) {
