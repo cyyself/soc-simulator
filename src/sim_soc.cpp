@@ -9,6 +9,9 @@
 #include "uartlite.hpp"
 
 #include <iostream>
+#include <termios.h>
+#include <unistd.h>
+#include <thread>
 
 void connect_wire(axi4_ptr <31,64,4> &mmio_ptr, axi4_ptr <33,64,4> &mem_ptr, VChipTop *top) {
     // connect
@@ -85,7 +88,19 @@ void connect_wire(axi4_ptr <31,64,4> &mmio_ptr, axi4_ptr <33,64,4> &mem_ptr, VCh
 }
 
 bool trace_on = false;
-char uart_history[5];
+
+void uart_input(uartlite &uart) {
+    termios tmp;
+    tcgetattr(STDIN_FILENO,&tmp);
+    tmp.c_lflag &=(~ICANON & ~ECHO);
+    tcsetattr(STDIN_FILENO,TCSANOW,&tmp);
+    while (1) {
+        char c = getchar();
+        if (c == 10) c = 13; // convert lf to cr
+        uart.putc(c);
+    }
+}
+
 int main(int argc, char** argv, char** env) {
     Verilated::commandArgs(argc, argv);
     Verilated::traceEverOn(true);
@@ -107,6 +122,7 @@ int main(int argc, char** argv, char** env) {
 
     mmio_mem           bootram(1024*1024,"../u-boot/u-boot.bin");
     uartlite           uart;
+    std::thread        uart_input_thread(uart_input,std::ref(uart));
     assert(mmio.add_dev(0x60000000,1024*1024,&bootram));
     assert(mmio.add_dev(0x60100000,1024*1024,&uart));
 
@@ -119,7 +135,6 @@ int main(int argc, char** argv, char** env) {
     unsigned long ticks = 0;
     long max_trace_ticks = 1000;
     unsigned long uart_tx_bytes = 0;
-    top->ext_interrupts = 0xf;
     while (!Verilated::gotFinish() && max_trace_ticks > 0) {
         top->eval();
         ticks ++;
@@ -137,24 +152,15 @@ int main(int argc, char** argv, char** env) {
         if (!top->reset) {
             mem.beat(mem_sigs_ref);
             mmio.beat(mmio_sigs_ref);
-            bool has_tx = false;
             while (uart.exist_tx()) {
                 char c = uart.getc();
                 printf("%c",c);
-                uart_history[(uart_tx_bytes++)%5] = c;
-                if (uart_history[(uart_tx_bytes-5+5)%5] == '2' &&uart_history[(uart_tx_bytes-4+5)%5] == ' ' && uart_history[(uart_tx_bytes-3+5)%5] == 'G' && uart_history[(uart_tx_bytes-2+5)%5] == 'i' && uart_history[(uart_tx_bytes-1+5)%5] == 'B') {
-                    trace_on = true;
-                }
-                has_tx = true;
-            }
-            if (has_tx && uart_tx_bytes % 10 == 9) {
-                uart.putc(13);
-                printf("\n");
+                fflush(stdout);
             }
         }
         mmio_sigs.update_output(mmio_ref);
         mem_sigs.update_output(mem_ref);
-        //top->ext_interrupts = uart.irq() ? 0xf:0;
+        top->ext_interrupts = uart.irq();
         if (trace_on) {
             vcd.dump(ticks);
             max_trace_ticks --;

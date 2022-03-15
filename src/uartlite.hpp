@@ -30,8 +30,8 @@ class uartlite : public mmio_dev  {
         }
         axi_resp do_read(unsigned long start_addr, unsigned long size, unsigned char* buffer) {
             std::unique_lock<std::mutex> lock(rx_lock);
-            printf("mmio read %08lx size %lu\n",start_addr,size);
-            fflush(stdout);
+            //printf("mmio read %08lx size %lu\n",start_addr,size);
+            //fflush(stdout);
             if (start_addr + size > sizeof(regs)) return RESP_DECERR;
             if (!rx.empty()) {
                 regs.status |= SR_RX_FIFO_VALID_DATA;
