@@ -176,7 +176,6 @@ class axi4_slave {
         }
         void write_beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
             if (pin.wvalid && pin.wready) {
-                pin.wready = 1;
                 w_cur_trans += 1;
                 if (w_cur_trans == w_nr_trans) {
                     write_busy = false;
@@ -213,7 +212,6 @@ class axi4_slave {
             if (pin.awready && pin.awvalid) {
                 write_init(pin);
                 write_busy = true;
-                pin.wready = 1;
                 return;
             }
             if (write_busy) {
