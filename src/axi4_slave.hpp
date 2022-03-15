@@ -212,7 +212,6 @@ class axi4_slave {
             if (pin.awready && pin.awvalid) {
                 write_init(pin);
                 write_busy = true;
-                return;
             }
             if (write_busy) {
                 write_beat(pin);
