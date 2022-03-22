@@ -21,13 +21,13 @@ public:
         if (it != devices.end()) {
             unsigned long l_max = std::max(it->first.first,addr_range.first);
             unsigned long r_min = std::min(it->first.second,addr_range.second);
-            if (r_min < l_max) return false; // overleap
+            if (l_max < r_min) return false; // overleap
         }
         if (it != devices.begin()) {
             it = std::prev(it);
             unsigned long l_max = std::max(it->first.first,addr_range.first);
             unsigned long r_min = std::min(it->first.second,addr_range.second);
-            if (r_min < l_max) return false; // overleap
+            if (l_max < r_min) return false; // overleap
         }
         // overleap check pass
         devices[addr_range] = dev;
