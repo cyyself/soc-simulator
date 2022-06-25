@@ -43,7 +43,9 @@ class axi4_slave {
             if (r_burst_type == BURST_RESERVED) return false;
             if (r_burst_type == BURST_WRAP && (r_current_addr % r_each_len)) return false;
             if (r_burst_type == BURST_WRAP) {
-                if (r_nr_trans != 2 || r_nr_trans != 4 || r_nr_trans != 8 || r_nr_trans != 16) return false;
+                if (r_nr_trans != 2 || r_nr_trans != 4 || r_nr_trans != 8 || r_nr_trans != 16) {
+                    return false;
+                }
             }
             uint64_t rem_addr = 4096 - (r_start_addr % 4096);
             if (r_tot_len > rem_addr) return false;
@@ -76,7 +78,7 @@ class axi4_slave {
                 else { // INCR, WRAP
                     pin.rresp = r_resp;
                     pin.rdata = *(AUTO_SIG(*,D_WIDTH-1,0))(&r_data[r_current_addr - (r_current_addr % D_bytes)]);
-                    r_current_addr += r_each_len;
+                    r_current_addr += r_each_len - (r_current_addr % r_each_len);
                     if (r_burst_type == BURST_WRAP && r_current_addr == ((r_start_addr % 4096) + r_each_len * r_nr_trans)) {
                         r_current_addr = r_start_addr % 4096;
                     }
@@ -93,7 +95,7 @@ class axi4_slave {
             r_start_addr    = (r_burst_type == BURST_WRAP) ? (pin.araddr - (pin.araddr % (r_each_len * r_nr_trans) ) ) : pin.araddr;
             r_cur_trans     = 0;
             r_tot_len       = ( (r_burst_type == BURST_FIXED) ? r_each_len : r_each_len * r_nr_trans) - (r_start_addr % r_each_len); // first beat can be unaligned
-            r_early_err     |= !read_check();
+            r_early_err     = !read_check();
             assert(!r_early_err);
             // clear unused bits.
             if (r_start_addr % D_bytes) {
@@ -164,8 +166,8 @@ class axi4_slave {
             w_burst_type    = static_cast<axi_burst_type>(pin.awburst);
             w_each_len      = 1 << pin.awsize;
             w_nr_trans      = pin.awlen + 1;
-            w_current_addr  = (r_burst_type == BURST_WRAP) ? pin.awaddr : (pin.awaddr - (pin.awaddr % D_bytes));
-            w_start_addr    = (r_burst_type == BURST_WRAP) ? (pin.awaddr - (pin.awaddr % (w_each_len * w_nr_trans))) : pin.awaddr;
+            w_current_addr  = (w_burst_type == BURST_WRAP) ? pin.awaddr : (pin.awaddr - (pin.awaddr % w_each_len));
+            w_start_addr    = (w_burst_type == BURST_WRAP) ? (pin.awaddr - (pin.awaddr % (w_each_len * w_nr_trans))) : pin.awaddr;
             w_cur_trans     = 0;
             w_tot_len       = w_each_len * w_nr_trans - (w_start_addr % w_each_len);
             w_early_err     = !write_check();
