@@ -104,28 +104,28 @@ cp ../rocket-chip/vsim/generated-src/freechips.rocketchip.system.DefaultFPGAConf
 Apply this patch to rocket.dts.
 
 ```patch
-8,28d7
-< 
-<     chosen {
-<         bootargs = "earlycon=sbi console=ttyUL0 rdinit=/sbin/init";
-<         stdout-path = "serial0";
-<     };
-< 
-<       aliases {
-<               serial0 = &uart0;
-<       };
-< 
-<     uart0: uartlite_0@60100000 {
-<         compatible = "xlnx,axi-uartlite-1.02.a", "xlnx,xps-uartlite-1.00.a";
-<         reg = <0x60100000 0x1000>;
-<         interrupt-parent = <&L5>;
-<         interrupts = <1>;
-<         clock = <&L0>;
-<         current-speed = <115200>;
-<         xlnx,data-bits = <8>;
-<         xlnx,use-parity = <0>;
-<     };
-< 
+7a8,28
+> 
+>     chosen {
+>         bootargs = "earlycon=sbi console=ttyUL0 rdinit=/sbin/init";
+>         stdout-path = "serial0";
+>     };
+> 
+>       aliases {
+>               serial0 = &uart0;
+>       };
+> 
+>     uart0: uartlite_0@60100000 {
+>         compatible = "xlnx,axi-uartlite-1.02.a", "xlnx,xps-uartlite-1.00.a";
+>         reg = <0x60100000 0x1000>;
+>         interrupt-parent = <&L5>;
+>         interrupts = <1>;
+>         clock = <&L0>;
+>         current-speed = <115200>;
+>         xlnx,data-bits = <8>;
+>         xlnx,use-parity = <0>;
+>     };
+> 
 ```
 
 ```bash
