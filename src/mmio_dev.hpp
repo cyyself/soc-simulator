@@ -4,8 +4,8 @@
 #include "axi4.hpp"
 class mmio_dev {
 public:
-    virtual axi_resp do_read (unsigned long start_addr, unsigned long size, unsigned char* buffer) = 0;
-    virtual axi_resp do_write(unsigned long start_addr, unsigned long size, const unsigned char* buffer) = 0;
+    virtual bool do_read (uint64_t start_addr, uint64_t size, uint8_t* buffer) = 0;
+    virtual bool do_write(uint64_t start_addr, uint64_t size, const uint8_t* buffer) = 0;
 };
 
 #endif

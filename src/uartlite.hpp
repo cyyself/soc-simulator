@@ -28,11 +28,11 @@ class uartlite : public mmio_dev  {
             memset(&regs,0,sizeof(regs));
             regs.status = SR_TX_FIFO_EMPTY;
         }
-        axi_resp do_read(unsigned long start_addr, unsigned long size, unsigned char* buffer) {
+        bool do_read(uint64_t start_addr, uint64_t size, uint8_t* buffer) {
             std::unique_lock<std::mutex> lock(rx_lock);
             //printf("mmio read %08lx size %lu\n",start_addr,size);
             //fflush(stdout);
-            if (start_addr + size > sizeof(regs)) return RESP_DECERR;
+            if (start_addr + size > sizeof(regs)) return false;
             if (!rx.empty()) {
                 regs.status |= SR_RX_FIFO_VALID_DATA;
                 regs.rx_fifo = rx.front();
@@ -42,16 +42,16 @@ class uartlite : public mmio_dev  {
             if (start_addr <= offsetof(uartlite_regs,rx_fifo) && offsetof(uartlite_regs,rx_fifo) <= start_addr + size) {
                 if (!rx.empty()) rx.pop();
             }
-            return RESP_OKEY;
+            return true;
         }
-        axi_resp do_write(unsigned long start_addr, unsigned long size, const unsigned char* buffer) {
+        bool do_write(uint64_t start_addr, uint64_t size, const uint8_t* buffer) {
             //printf("mmio write %08lx size %lu\n",start_addr,size);
             //for (int i=0;i<size;i++) printf("%02x",buffer[i]);
             //printf("\n");
             //fflush(stdout);
             std::unique_lock<std::mutex> lock_tx(tx_lock);
             std::unique_lock<std::mutex> lock_rx(rx_lock);
-            if (start_addr + size > sizeof(regs)) return RESP_DECERR;
+            if (start_addr + size > sizeof(regs)) return false;
             memcpy(((char*)(&regs))+start_addr,buffer,std::min(size,sizeof(regs)-start_addr));
             if (start_addr <= offsetof(uartlite_regs,tx_fifo) && offsetof(uartlite_regs,tx_fifo) <= start_addr + size) {
                 tx.push(static_cast<char>(regs.tx_fifo));
@@ -64,7 +64,7 @@ class uartlite : public mmio_dev  {
                     while (!rx.empty()) rx.pop();
                 }
             }
-            return RESP_OKEY;
+            return true;
         }
         void putc(char c) {
             std::unique_lock<std::mutex> lock(rx_lock);

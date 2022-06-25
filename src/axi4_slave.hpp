@@ -89,8 +89,8 @@ class axi4_slave {
             r_burst_type    = static_cast<axi_burst_type>(pin.arburst);
             r_each_len      = 1 << pin.arsize;
             r_nr_trans      = pin.arlen + 1;
-            r_current_addr  = (r_bust_type == BURST_WRAP) ? (pin.araddr % 4096) : ((pin.araddr % 4096) - (pin.araddr % r_each_len));
-            r_start_addr    = (r_bust_type == BURST_WRAP) ? (pin.araddr - (pin.araddr % (r_each_len * r_nr_trans) ) ) : pin.araddr;
+            r_current_addr  = (r_burst_type == BURST_WRAP) ? (pin.araddr % 4096) : ((pin.araddr % 4096) - (pin.araddr % r_each_len));
+            r_start_addr    = (r_burst_type == BURST_WRAP) ? (pin.araddr - (pin.araddr % (r_each_len * r_nr_trans) ) ) : pin.araddr;
             r_cur_trans     = 0;
             r_tot_len       = ( (r_burst_type == BURST_FIXED) ? r_each_len : r_each_len * r_nr_trans) - (r_start_addr % r_each_len); // first beat can be unaligned
             r_early_err     |= !read_check();

@@ -33,32 +33,32 @@ public:
         devices[addr_range] = dev;
         return true;
     }
-    protected:
-        axi_resp do_read(unsigned long start_addr, unsigned long size, unsigned char* buffer) {
-            //printf("mmio read %lx size %lu\n",start_addr,size);
-            //fflush(stdout);
-            auto it = devices.upper_bound(std::make_pair(start_addr,ULONG_MAX));
-            if (it == devices.begin()) return RESP_DECERR;
-            it = std::prev(it);
-            unsigned long end_addr = start_addr + size;
-            if (it->first.first <= start_addr && end_addr <= it->first.second) {
-                unsigned long dev_size = it->first.second - it->first.first;
-                return it->second->do_read(start_addr % dev_size, size, buffer);
-            }
-            else return RESP_DECERR;
+protected:
+    axi_resp do_read(uint64_t start_addr, uint64_t size, unsigned char* buffer) {
+        //printf("mmio read %lx size %lu\n",start_addr,size);
+        //fflush(stdout);
+        auto it = devices.upper_bound(std::make_pair(start_addr,ULONG_MAX));
+        if (it == devices.begin()) return RESP_DECERR;
+        it = std::prev(it);
+        uint64_t end_addr = start_addr + size;
+        if (it->first.first <= start_addr && end_addr <= it->first.second) {
+            uint64_t dev_size = it->first.second - it->first.first;
+            return it->second->do_read(start_addr % dev_size, size, buffer) ? RESP_OKEY : RESP_SLVERR;
         }
-        axi_resp do_write(unsigned long start_addr, unsigned long size, const unsigned char* buffer) {
-            //printf("mmio write %lx size %lu\n",start_addr,size);
-            //fflush(stdout);
-            auto it = devices.upper_bound(std::make_pair(start_addr,ULONG_MAX));
-            if (it == devices.begin()) return RESP_DECERR;
-            it = std::prev(it);
-            unsigned long end_addr = start_addr + size;
-            if (it->first.first <= start_addr && end_addr <= it->first.second) {
-                unsigned long dev_size = it->first.second - it->first.first;
-                return it->second->do_write(start_addr % dev_size, size, buffer);
-            }
-            else return RESP_DECERR;
+        else return RESP_DECERR;
+    }
+    axi_resp do_write(uint64_t start_addr, uint64_t size, const unsigned char* buffer) {
+        //printf("mmio write %lx size %lu\n",start_addr,size);
+        //fflush(stdout);
+        auto it = devices.upper_bound(std::make_pair(start_addr,ULONG_MAX));
+        if (it == devices.begin()) return RESP_DECERR;
+        it = std::prev(it);
+        uint64_t end_addr = start_addr + size;
+        if (it->first.first <= start_addr && end_addr <= it->first.second) {
+            uint64_t dev_size = it->first.second - it->first.first;
+            return it->second->do_write(start_addr % dev_size, size, buffer) ? RESP_OKEY : RESP_SLVERR;
+        }
+        else return RESP_DECERR;
         }
 private:
     std::map < std::pair<unsigned long,unsigned long>, mmio_dev* > devices;
