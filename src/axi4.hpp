@@ -3,6 +3,7 @@
 
 #include <verilated.h>
 #include <condition_variable>
+#include <cstdint>
 
 #define AUTO_SIG(name, msb, lsb) \
     typename std::conditional <(msb-lsb+1) <=  8, CData, \
@@ -11,6 +12,14 @@
 
 #define AUTO_IN(name, msb, lsb)  AUTO_SIG(name, msb, lsb)
 #define AUTO_OUT(name, msb, lsb) AUTO_SIG(name, msb, lsb)
+
+/*
+    We have defined 3 types of AXI signals for a different purposes: axi4, axi4_ptr, axi4_ref.
+
+    Since verilator exposes signals as a value itself, we use axi4_ptr to get signal to connect.
+
+    Then axi4_ptr can be converted to axi4_ref to reach the value in a better way.
+ */
 
 template <unsigned int A_WIDTH, unsigned int D_WIDTH, unsigned int ID_WIDTH>
 struct axi4;
@@ -41,7 +50,7 @@ struct axi4_ptr {
     // ar
     AUTO_IN (*arid      ,ID_WIDTH-1, 0)     = NULL;
     AUTO_IN (*araddr    ,A_WIDTH-1, 0)      = NULL;
-    AUTO_IN (*arlen     ,(D_WIDTH/8)-1, 0)  = NULL;
+    AUTO_IN (*arlen     , 7, 0)             = NULL;
     AUTO_IN (*arsize    , 2, 0)             = NULL;
     AUTO_IN (*arburst   , 1, 0)             = NULL;
     AUTO_IN (*arvalid   , 0, 0)             = NULL;
@@ -117,7 +126,7 @@ struct axi4_ref {
     // ar
     AUTO_IN (&arid      ,ID_WIDTH-1, 0);
     AUTO_IN (&araddr    ,A_WIDTH-1, 0);
-    AUTO_IN (&arlen     ,(D_WIDTH/8)-1, 0);
+    AUTO_IN (&arlen     , 7, 0);
     AUTO_IN (&arsize    , 2, 0);
     AUTO_IN (&arburst   , 1, 0);
     AUTO_IN (&arvalid   , 0, 0);
@@ -187,7 +196,7 @@ struct axi4 {
     // ar
     AUTO_IN (arid       ,ID_WIDTH-1, 0);
     AUTO_IN (araddr     ,A_WIDTH-1, 0);
-    AUTO_IN (arlen      ,(D_WIDTH/8)-1, 0);
+    AUTO_IN (arlen      , 7, 0);
     AUTO_IN (arsize     , 2, 0);
     AUTO_IN (arburst    , 1, 0);
     AUTO_IN (arvalid    , 0, 0);
@@ -200,7 +209,8 @@ struct axi4 {
     AUTO_OUT(rvalid     , 0, 0);
     AUTO_IN (rready     , 0, 0);
     axi4() {
-        memset(this,0,sizeof(*this));
+        // reset all pointer to zero
+        memset(this,NULL,sizeof(*this));
     }
     void update_input(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &ref) {
         // aw
