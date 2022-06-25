@@ -76,10 +76,11 @@ index fdc8a87b4..9786853c4 100644
 
 We have changed the following things:
 
-1. Set bootrom to jump to DRAMBASE address.
-2. Commented trace output, so we can see the output from Serial.
-3. Set proper memory size.
-4. Change Small Core to Big Core, since the Small Core has no S-Mode support to get OpenSBI running.
+    1. Set bootrom to jump to DRAM_BASE address.
+    2. Commented trace output, so we can see the output from Serial.
+    3. Set proper memory size.
+    4. Change Small Core to Big Core, since the Small Core has no S-Mode support to get OpenSBI running.
+
 
 3. Build Rocket-Chip
 
