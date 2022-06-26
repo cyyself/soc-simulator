@@ -144,3 +144,7 @@ make
 ```
 
 Note: It takes about 30s when simulating on AMD Ryzen 5800X CPU to see the first serial output and you will finally see the "Test payload running". If you didn't see any output, you can uncomment trace output in step 2 to see what happens.
+
+## Advanved Usage
+
+Go to see [src/sim_rocket.cpp](../src/sim_rocket.cpp) and [Makefile](../Makefile), you will learn how to build verilog to Verilator and connect the AXI wire and set up soc in C++ software with defined address space.
