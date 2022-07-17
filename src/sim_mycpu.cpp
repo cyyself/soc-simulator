@@ -64,15 +64,23 @@ void uart_input(uart8250 &uart) {
     }
 }
 
+bool running = true;
+
 int main(int argc, char** argv, char** env) {
     Verilated::commandArgs(argc, argv);
     // setup trace
     bool trace_on = false;
+    bool trace_pc = false;
     long sim_time = 1e3;
-    for (int i=1;i<argc;i++) if (strcmp(argv[i],"-trace") == 0) {
-        trace_on = true;
-        if (i+1 < argc) {
-            sscanf(argv[i+1],"%lu",&sim_time);
+    for (int i=1;i<argc;i++) {
+        if (strcmp(argv[i],"-trace") == 0) {
+            trace_on = true;
+            if (i+1 < argc) {
+                sscanf(argv[i+1],"%lu",&sim_time);
+            }
+        }
+        else if (strcmp(argv[i],"-pc") == 0) {
+            trace_pc = true;
         }
     }
     Verilated::traceEverOn(trace_on);
@@ -112,9 +120,10 @@ int main(int argc, char** argv, char** env) {
     // init and run
     top->aresetn = 0;
     unsigned long ticks = 0;
-    while (!Verilated::gotFinish() && sim_time > 0) {
+    while (!Verilated::gotFinish() && sim_time > 0 && running) {
         top->eval();
         ticks ++;
+        if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
         if (trace_on) {
             vcd.dump(ticks);
             sim_time --;
@@ -134,6 +143,7 @@ int main(int argc, char** argv, char** env) {
             }
         }
         mmio_sigs.update_output(mmio_ref);
+        if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
         if (trace_on) {
             vcd.dump(ticks);
             sim_time --;
