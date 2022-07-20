@@ -7,6 +7,7 @@
 #include "axi4_xbar.hpp"
 #include "mmio_mem.hpp"
 #include "uart8250.hpp"
+#include "nscscc_confreg.hpp"
 
 #include <iostream>
 #include <termios.h>
@@ -134,6 +135,56 @@ void system_test(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     pthread_kill(uart_input_thread->native_handle(),SIGKILL);
 }
 
+void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
+    axi4     <32,32,4> mmio_sigs;
+    axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
+    axi4_xbar<32,32,4> mmio;
+
+    // perf mem at 0x1fc00000
+    mmio_mem perf_mem(262144*4, "../nscscc-group/perf_test_v0.01/soft/perf_func/obj/allbench/inst_data.bin");
+    assert(mmio.add_dev(0x1fc00000,0x100000,&perf_mem));
+
+    // confreg at 0x1faf0000
+    nscscc_confreg confreg;
+    assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
+    
+    // init and run
+    for (int test=1;test<=10;test++) {
+        running = true;
+        confreg.set_switch(test);
+        top->aresetn = 0;
+        unsigned long ticks = 0;
+        while (!Verilated::gotFinish() && sim_time > 0 && running) {
+            top->eval();
+            ticks ++;
+            if (top->debug_wb_pc == 0xbfc00100u) running = false;
+            if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
+            if (trace_on) {
+                sim_time --;
+            }
+            if (ticks == 9) top->aresetn = 1;
+            top->aclk = 1;
+            // posedge
+            mmio_sigs.update_input(mmio_ref);
+            top->eval();
+            confreg.tick();
+            ticks ++;
+            if (top->aresetn) {
+                mmio.beat(mmio_sigs_ref);
+            }
+            mmio_sigs.update_output(mmio_ref);
+            if (top->debug_wb_pc == 0xbfc00100u) running = false;
+            if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
+            if (trace_on) {
+                sim_time --;
+            }
+            top->aclk = 0;
+        }
+        printf("%x\n",confreg.get_num()*10);
+    }
+    top->final();
+}
+
 int main(int argc, char** argv, char** env) {
     Verilated::commandArgs(argc, argv);
 
@@ -156,6 +207,9 @@ int main(int argc, char** argv, char** env) {
         else if (strcmp(argv[i],"-sys") == 0) {
             run_mode = SYS_TEST;
         }
+        else if (strcmp(argv[i],"-perf") == 0) {
+            run_mode = PERF;
+        }
     }
     Verilated::traceEverOn(trace_on);
     // setup soc
@@ -170,6 +224,9 @@ int main(int argc, char** argv, char** env) {
     switch (run_mode) {
         case SYS_TEST:
             system_test(top, mmio_ref);
+            break;
+        case PERF:
+            perf_run(top, mmio_ref);
             break;
         default:
             printf("Unknown running mode.\n");
