@@ -180,7 +180,7 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             }
             top->aclk = 0;
         }
-        printf("%x\n",confreg.get_num()*10);
+        printf("%x\n",confreg.get_num());
     }
     top->final();
 }

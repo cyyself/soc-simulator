@@ -41,7 +41,7 @@ public:
         led_rg0 = 0;
         led_rg1 = 0;
         num = 0;
-        simu_flag = 0xffffffffu;
+        simu_flag = 0;
         io_simu = 0;
         open_trace = 1;
         num_monitor = 1;
