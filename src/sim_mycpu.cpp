@@ -152,6 +152,7 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     // init and run
     top->aresetn = 0;
     unsigned long ticks = 0;
+    int test_point = 0;
     while (!Verilated::gotFinish() && sim_time > 0 && running) {
         top->eval();
         ticks ++;
@@ -171,7 +172,10 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             mmio.beat(mmio_sigs_ref);
         }
         mmio_sigs.update_output(mmio_ref);
-        while (confreg.has_uart()) printf("%c",confreg.get_uart());
+        if (confreg.get_num() != test_point) {
+            test_point = confreg.get_num();
+            printf("Number %d Functional Test Point PASS!\n", test_point>>24);
+        }
         if (top->debug_wb_pc == 0xbfc00100u) running = false;
         if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
         if (trace_on) {
