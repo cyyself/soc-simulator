@@ -34,18 +34,19 @@
 // physical address = [0x1faf0000,0x1fafffff]
 class nscscc_confreg : public mmio_dev {
 public:
-    nscscc_confreg() {
+    nscscc_confreg(bool simulation = false) {
         timer = 0;
         memset(cr,0,sizeof(cr));
         led = 0;
         led_rg0 = 0;
         led_rg1 = 0;
         num = 0;
-        simu_flag = 0;
+        simu_flag = simulation ? 0xffffffffu : 0;
         io_simu = 0;
         open_trace = 1;
         num_monitor = 1;
         virtual_uart = 0;
+        set_switch(0);
     }
     void tick() {
         timer ++;
@@ -180,8 +181,8 @@ public:
     void set_switch(uint8_t value) {
         switch_data = value ^ 0xf;
         switch_inter_data = 0;
-        for (int i=0;i<7;i++) {
-            if ((value >> i)&1) {
+        for (int i=0;i<=7;i++) {
+            if ( ((value >> i) & 1) == 0) {
                 switch_inter_data |= 2<<(2*i);
             }
         }
