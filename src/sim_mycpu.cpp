@@ -138,7 +138,7 @@ void system_test(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
 void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     axi4     <32,32,4> mmio_sigs;
     axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
-    axi4_xbar<32,32,4> mmio;
+    axi4_xbar<32,32,4> mmio(23);
 
     // perf mem at 0x1fc00000
     mmio_mem perf_mem(262144*4, "../nscscc-group/perf_test_v0.01/soft/perf_func/obj/allbench/inst_data.bin");
@@ -173,6 +173,7 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
                 mmio.beat(mmio_sigs_ref);
             }
             mmio_sigs.update_output(mmio_ref);
+            // while (confreg.has_uart()) printf("%c",confreg.get_uart());
             if (top->debug_wb_pc == 0xbfc00100u) running = false;
             if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
             if (trace_on) {
