@@ -13,6 +13,9 @@
 template <unsigned int A_WIDTH = 64, unsigned int D_WIDTH = 64, unsigned int ID_WIDTH = 4>
 class axi4_xbar: public axi4_slave<A_WIDTH,D_WIDTH,ID_WIDTH>  {
 public:
+    axi4_xbar(int delay = 0):axi4_slave<A_WIDTH,D_WIDTH,ID_WIDTH>(delay) {
+
+    }
     bool add_dev(unsigned long start_addr, unsigned long length, mmio_dev *dev) {
         std::pair<unsigned long, unsigned long> addr_range = std::make_pair(start_addr,start_addr+length);
         if (start_addr % length) return false;

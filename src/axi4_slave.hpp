@@ -13,6 +13,9 @@ class axi4_slave {
     static_assert(D_WIDTH <= 64, "D_WIDTH should be <= 64.");
     static_assert(A_WIDTH <= 64, "A_WIDTH should be <= 64.");
     public:
+        axi4_slave(int delay = 0):delay(delay) {
+
+        }
         void beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
             read_channel(pin);
             write_channel(pin);
@@ -22,10 +25,12 @@ class axi4_slave {
         virtual axi_resp do_write(uint64_t start_addr, uint64_t size, const uint8_t* buffer) = 0;
     private:
         unsigned int D_bytes = D_WIDTH / 8;
+        int delay;
     private:
         bool read_busy = false; // during trascation except last
         bool read_last = false; // wait rready and free
         bool read_wait = false; // ar ready, but waiting the last read to ready
+        int  read_delay = 0; // delay
         uint64_t        r_start_addr;   // lower bound of transaction address
         uint64_t        r_current_addr; // current burst address in r_data buffer (physical address % 4096)
         AUTO_SIG(       arid        ,ID_WIDTH-1,0);
@@ -122,22 +127,30 @@ class axi4_slave {
                 if (read_wait) {
                     read_wait = false;
                     read_busy = true;
+                    read_delay = delay;
                 }
             }
             // Read step 2. check new address come
             if (pin.arready && pin.arvalid) {
                 read_init(pin);
                 if (read_last) read_wait = true;
-                else read_busy = true;
+                else {
+                    read_busy = true;
+                    read_delay = delay;
+                }
             }
             // Read step 3. do read trascation
-            if (read_busy) read_beat(pin);
+            if (read_busy) {
+                if (read_delay) read_delay --;
+                else read_beat(pin);
+            }
             // Read step 4. set arready before new address come, it will change read_busy and read_wait status
             pin.arready = !read_busy && !read_wait;
         }
     private:
         bool write_busy = false;
         bool b_busy     = false;
+        int  write_delay = 0;
         uint64_t        w_start_addr;
         uint64_t        w_current_addr;
         AUTO_SIG(       awid        ,ID_WIDTH-1,0);
@@ -226,16 +239,18 @@ class axi4_slave {
             if (pin.awready && pin.awvalid) {
                 write_init(pin);
                 write_busy = true;
+                write_delay = delay;
             }
             if (write_busy) {
-                write_beat(pin);
+                if (write_delay) write_delay --;
+                else write_beat(pin);
             }
             if (b_busy) {
                 b_beat(pin);
             }
             pin.bvalid = b_busy;
             pin.awready = !write_busy && !b_busy;
-            pin.wready  = !b_busy;
+            pin.wready  = !b_busy && !write_delay;
         }
 };
 
