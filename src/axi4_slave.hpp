@@ -226,7 +226,7 @@ class axi4_slave {
                     int &addr = sub_range.first;
                     int &len  = sub_range.second;
                     memcpy(w_buffer,&(pin.wdata),sizeof(pin.wdata));
-                    w_resp = static_cast<axi_resp>(static_cast<int>(w_resp) | static_cast<int>(do_write(addr_base+addr,len,w_buffer+in_data_pos)));
+                    w_resp = static_cast<axi_resp>(static_cast<int>(w_resp) | static_cast<int>(do_write(addr_base+addr,len,w_buffer+addr)));
                 }
             }
         }
