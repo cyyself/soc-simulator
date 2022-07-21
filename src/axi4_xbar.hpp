@@ -42,7 +42,6 @@ protected:
         //fflush(stdout);
         auto it = devices.upper_bound(std::make_pair(start_addr,ULONG_MAX));
         if (it == devices.begin()) {
-            assert(false);
             return RESP_DECERR;
         }
         it = std::prev(it);
@@ -52,7 +51,6 @@ protected:
             return it->second->do_read(start_addr % dev_size, size, buffer) ? RESP_OKEY : RESP_SLVERR;
         }
         else {
-            assert(false);
             return RESP_DECERR;
         }
     }
@@ -61,7 +59,6 @@ protected:
         //fflush(stdout);
         auto it = devices.upper_bound(std::make_pair(start_addr,ULONG_MAX));
         if (it == devices.begin()) {
-            assert(false);
             return RESP_DECERR;
         }
         it = std::prev(it);
@@ -71,7 +68,6 @@ protected:
             return it->second->do_write(start_addr % dev_size, size, buffer) ? RESP_OKEY : RESP_SLVERR;
         }
         else {
-            assert(false);
             return RESP_DECERR;
         }
     }
