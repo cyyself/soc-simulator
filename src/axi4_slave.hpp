@@ -115,7 +115,7 @@ class axi4_slave {
 
         void read_channel(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
             // Read step 1. release old transaction
-            if (read_last && pin.rvalid) {
+            if (read_last && pin.rready) {
                 read_last = false;
                 pin.rvalid = 0;     // maybe change in the following code
                 pin.rlast = 0;
