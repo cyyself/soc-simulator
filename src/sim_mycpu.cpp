@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <thread>
 #include <csignal>
+#include <sstream>
 
 void connect_wire(axi4_ptr <32,32,4> &mmio_ptr, Vmycpu_top *top) {
     // connect
@@ -205,7 +206,7 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     top->final();
 }
 
-void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
+void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1, int test_end = 10) {
     axi4     <32,32,4> mmio_sigs;
     axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
     axi4_xbar<32,32,4> mmio(23);
@@ -218,18 +219,28 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     nscscc_confreg confreg;
     assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
     
+    // connect Vcd for trace
+    VerilatedVcdC vcd;
+    if (trace_on) {
+        top->trace(&vcd,0);
+    }
+    unsigned long ticks = 0;
+
     // init and run
-    for (int test=1;test<=10;test++) {
+    for (int test=test_start;test<=test_end;test++) {
         running = true;
         confreg.set_switch(test);
         top->aresetn = 0;
-        unsigned long ticks = 0;
+        std::stringstream ss;
+        ss << "trace-perf-" << test << ".vcd";
+        vcd.open(ss.str().c_str());
         while (!Verilated::gotFinish() && sim_time > 0 && running) {
             top->eval();
             ticks ++;
             if (top->debug_wb_pc == 0xbfc00100u) running = false;
             if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
             if (trace_on) {
+                vcd.dump(ticks);
                 sim_time --;
             }
             if (ticks == 9) top->aresetn = 1;
@@ -247,10 +258,12 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             if (top->debug_wb_pc == 0xbfc00100u) running = false;
             if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
             if (trace_on) {
+                vcd.dump(ticks);
                 sim_time --;
             }
             top->aclk = 0;
         }
+        vcd.close();
         printf("%x\n",confreg.get_num());
     }
     top->final();
@@ -264,6 +277,9 @@ int main(int argc, char** argv, char** env) {
     });
 
     enum {FUNC, PERF, SYS_TEST, RUN_OS} run_mode;
+
+    int perf_start = 1;
+    int perf_end = 10;
 
     for (int i=1;i<argc;i++) {
         if (strcmp(argv[i],"-trace") == 0) {
@@ -287,6 +303,13 @@ int main(int argc, char** argv, char** env) {
         else if (strcmp(argv[i],"-uart") == 0) {
             confreg_uart = true;
         }
+        else if (strcmp(argv[i],"-prog") == 0) {
+            if (i+1 < argc) {
+                sscanf(argv[++i],"%lu",&perf_start);
+                perf_end = perf_start;
+                printf("set performance test program to %d\n",perf_start);
+            }
+        }
     }
     Verilated::traceEverOn(trace_on);
     // setup soc
@@ -306,7 +329,10 @@ int main(int argc, char** argv, char** env) {
             func_run(top, mmio_ref);
             break;
         case PERF:
-            perf_run(top, mmio_ref);
+            if (trace_on && perf_start != perf_end) {
+                printf("Warning: You should better set perf program.");
+            }
+            perf_run(top, mmio_ref, perf_start, perf_end);
             break;
         default:
             printf("Unknown running mode.\n");
