@@ -233,7 +233,8 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
         top->aresetn = 0;
         std::stringstream ss;
         ss << "trace-perf-" << test << ".vcd";
-        vcd.open(ss.str().c_str());
+        if (trace_on) vcd.open(ss.str().c_str());
+        unsigned long rst_ticks = 10;
         while (!Verilated::gotFinish() && sim_time > 0 && running) {
             top->eval();
             ticks ++;
@@ -243,7 +244,11 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
                 vcd.dump(ticks);
                 sim_time --;
             }
-            if (ticks == 9) top->aresetn = 1;
+            if (rst_ticks  > 0) {
+                top->aresetn = 0;
+                rst_ticks --;
+            }
+            else top->aresetn = 1   ;
             top->aclk = 1;
             // posedge
             mmio_sigs.update_input(mmio_ref);
@@ -263,10 +268,11 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
             }
             top->aclk = 0;
         }
-        vcd.close();
+        if (trace_on) vcd.close();
         printf("%x\n",confreg.get_num());
     }
     top->final();
+    printf("total ticks = %lu\n", ticks);
 }
 
 int main(int argc, char** argv, char** env) {
