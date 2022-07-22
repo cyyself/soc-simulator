@@ -336,7 +336,7 @@ int main(int argc, char** argv, char** env) {
             break;
         case PERF:
             if (trace_on && perf_start != perf_end) {
-                printf("Warning: You should better set perf program.");
+                printf("Warning: You should better set perf program.\n");
             }
             perf_run(top, mmio_ref, perf_start, perf_end);
             break;
