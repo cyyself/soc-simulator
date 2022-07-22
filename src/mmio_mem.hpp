@@ -36,6 +36,14 @@ class mmio_mem : public mmio_dev  {
                 memcpy(buffer,&mem[start_addr],size);
                 return true;
             }
+            else if (allow_warp) {
+                start_addr %= mem_size;
+                if (start_addr + size <= mem_size) {
+                    memcpy(buffer,&mem[start_addr],size);
+                    return true;
+                }
+                else return false;
+            }
             else return false;
         }
         bool do_write(uint64_t start_addr, uint64_t size, const uint8_t* buffer) {
@@ -43,11 +51,23 @@ class mmio_mem : public mmio_dev  {
                 memcpy(&mem[start_addr],buffer,size);
                 return true;
             }
+            else if (allow_warp) {
+                start_addr %= mem_size;
+                if (start_addr + size <= mem_size) {
+                    memcpy(&mem[start_addr],buffer,size);
+                    return true;
+                }
+                else return false;
+            }
             else return false;
+        }
+        void set_allow_warp(bool value) {
+            allow_warp = true;
         }
     private:
         unsigned char *mem;
         size_t mem_size;
+        bool allow_warp = false;
 };
 
 #endif

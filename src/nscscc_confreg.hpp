@@ -5,6 +5,7 @@
 #include <cstring>
 #include <cassert>
 #include <queue>
+#include <fstream>
 
 // offset += 0x1faf8000
 
@@ -116,8 +117,10 @@ public:
                 break;
             case OPEN_TRACE_ADDR:
                 *(unsigned int *)buffer = open_trace;
+                break;
             case NUM_MONITOR_ADDR:
                 *(unsigned int *)buffer = num_monitor;
+                break;
             default:
                 *(unsigned int *)buffer = 0;
                 break;
@@ -157,9 +160,10 @@ public:
             case IO_SIMU_ADDR:
                 io_simu = (((*(unsigned int*)buffer) & 0xffff) << 16) | ((*(unsigned int*)buffer) >> 16);
                 break;
-            case OPEN_TRACE_ADDR:
+            case OPEN_TRACE_ADDR: {
                 open_trace = (*(unsigned int*)buffer) != 0;
                 break;
+            }
             case NUM_MONITOR_ADDR:
                 num_monitor = (*(unsigned int*)buffer) & 1;
                 break;
@@ -198,7 +202,32 @@ public:
     uint32_t get_num() {
         return num;
     }
+    // trace
+    void set_trace_file(std::string filename) {
+        trace_file.open(filename);
+    }
+    bool do_trace(uint32_t pc, uint8_t wen, uint8_t wnum, uint32_t wdata, bool output = true) {
+        uint32_t trace_cmp_flag;
+        uint32_t ref_pc;
+        uint32_t ref_wnum;
+        uint32_t ref_wdata;
+        if (trace_on() && wen && wnum) {
+            while (trace_file >> std::hex >> trace_cmp_flag >> ref_pc >> ref_wnum >> ref_wdata && !trace_cmp_flag) {
+
+            }
+            if (pc != ref_pc || wnum != ref_wnum || wdata != ref_wdata) {
+                if (output) {
+                    printf("Error!\n");
+                    printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", ref_pc, ref_wnum, ref_wdata);
+                    printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", pc, wnum, wdata);
+                }
+                return false;
+            }
+        }
+        return true;
+    }
 private:
+    std::ifstream trace_file;
     uint32_t cr[8];
     unsigned int switch_data;
     unsigned int switch_inter_data;

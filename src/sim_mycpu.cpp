@@ -142,12 +142,24 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
 
     // func mem at 0x1fc00000 and 0x0
     mmio_mem perf_mem(262144*4, "../nscscc-group/func_test_v0.01/soft/func/obj/main.bin");
+    perf_mem.set_allow_warp(true);
     assert(mmio.add_dev(0x1fc00000,0x100000,&perf_mem));
-    assert(mmio.add_dev(0x0,0x100000,&perf_mem));
+    assert(mmio.add_dev(0x00000000,0x10000000,&perf_mem));
+    assert(mmio.add_dev(0x20000000,0x20000000,&perf_mem));
+    assert(mmio.add_dev(0x40000000,0x40000000,&perf_mem));
+    assert(mmio.add_dev(0x80000000,0x80000000,&perf_mem));
 
     // confreg at 0x1faf0000
     nscscc_confreg confreg(true);
+    confreg.set_trace_file("../nscscc-group/func_test_v0.01/cpu132_gettrace/golden_trace.txt");
     assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
+
+    // connect Vcd for trace
+    VerilatedVcdC vcd;
+    if (trace_on) {
+        top->trace(&vcd,0);
+        vcd.open("trace.vcd");
+    }
 
     // init and run
     top->aresetn = 0;
@@ -156,9 +168,11 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     while (!Verilated::gotFinish() && sim_time > 0 && running) {
         top->eval();
         ticks ++;
+        running = confreg.do_trace(top->debug_wb_pc,top->debug_wb_rf_wen,top->debug_wb_rf_wnum,top->debug_wb_rf_wdata);
         if (top->debug_wb_pc == 0xbfc00100u) running = false;
         if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
         if (trace_on) {
+            vcd.dump(ticks);
             sim_time --;
         }
         if (ticks == 9) top->aresetn = 1;
@@ -172,6 +186,7 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             mmio.beat(mmio_sigs_ref);
         }
         mmio_sigs.update_output(mmio_ref);
+        running = confreg.do_trace(top->debug_wb_pc,top->debug_wb_rf_wen,top->debug_wb_rf_wnum,top->debug_wb_rf_wdata);
         if (confreg.get_num() != test_point) {
             test_point = confreg.get_num();
             printf("Number %d Functional Test Point PASS!\n", test_point>>24);
@@ -179,10 +194,12 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
         if (top->debug_wb_pc == 0xbfc00100u) running = false;
         if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
         if (trace_on) {
+            vcd.dump(ticks);
             sim_time --;
         }
         top->aclk = 0;
     }
+    if (trace_on) vcd.close();
     top->final();
 }
 
@@ -250,7 +267,7 @@ int main(int argc, char** argv, char** env) {
         if (strcmp(argv[i],"-trace") == 0) {
             trace_on = true;
             if (i+1 < argc) {
-                sscanf(argv[i++],"%lu",&sim_time);
+                sscanf(argv[++i],"%lu",&sim_time);
             }
         }
         else if (strcmp(argv[i],"-pc") == 0) {
