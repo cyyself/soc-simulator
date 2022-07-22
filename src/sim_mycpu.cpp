@@ -57,6 +57,7 @@ void connect_wire(axi4_ptr <32,32,4> &mmio_ptr, Vmycpu_top *top) {
 bool running = true;
 bool trace_on = false;
 bool trace_pc = false;
+bool confreg_uart = false;
 long sim_time = 1e3;
 
 void uart_input(uart8250 &uart) {
@@ -187,6 +188,7 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
         }
         mmio_sigs.update_output(mmio_ref);
         running = confreg.do_trace(top->debug_wb_pc,top->debug_wb_rf_wen,top->debug_wb_rf_wnum,top->debug_wb_rf_wdata);
+        while (confreg_uart && confreg.has_uart()) printf("%c",confreg.get_uart());
         if (confreg.get_num() != test_point) {
             test_point = confreg.get_num();
             printf("Number %d Functional Test Point PASS!\n", test_point>>24);
@@ -241,7 +243,7 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
                 mmio.beat(mmio_sigs_ref);
             }
             mmio_sigs.update_output(mmio_ref);
-            // while (confreg.has_uart()) printf("%c",confreg.get_uart());
+            while (confreg_uart && confreg.has_uart()) printf("%c",confreg.get_uart());
             if (top->debug_wb_pc == 0xbfc00100u) running = false;
             if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
             if (trace_on) {
@@ -281,6 +283,9 @@ int main(int argc, char** argv, char** env) {
         }
         else if (strcmp(argv[i],"-perf") == 0) {
             run_mode = PERF;
+        }
+        else if (strcmp(argv[i],"-uart") == 0) {
+            confreg_uart = true;
         }
     }
     Verilated::traceEverOn(trace_on);
