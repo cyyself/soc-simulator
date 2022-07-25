@@ -288,6 +288,67 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
     printf("total ticks = %lu\n", ticks);
 }
 
+void perf_diff_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
+    axi4     <32,32,4> mmio_sigs;
+    axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
+    axi4_xbar<32,32,4> mmio(23);
+
+    // func mem at 0x1fc00000 and 0x0
+    // get CO-lab-material-CQU at https://github.com/cyyself/CO-lab-material-CQU
+    // cd ../CO-lab-material-CQU/test/perf_test_debug/cpu132_gettrace; 7z x golden_trace.7z;
+    // src at: https://github.com/cyyself/nscscc-perf-func
+    mmio_mem perf_mem(262144*4, "../CO-lab-material-CQU/test/perf_test_debug/soft/perf_func/obj/allbench/inst_data.bin");
+    perf_mem.set_allow_warp(true);
+    assert(mmio.add_dev(0x1fc00000,0x100000,&perf_mem));
+    assert(mmio.add_dev(0x00000000,0x10000000,&perf_mem));
+    assert(mmio.add_dev(0x20000000,0x20000000,&perf_mem));
+    assert(mmio.add_dev(0x40000000,0x40000000,&perf_mem));
+    assert(mmio.add_dev(0x80000000,0x80000000,&perf_mem));
+
+    // confreg at 0x1faf0000
+    nscscc_confreg confreg(true);
+    confreg.set_trace_file("../CO-lab-material-CQU/test/perf_test_debug/cpu132_gettrace/golden_trace_allbench.txt");
+    assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
+
+    // connect Vcd for trace
+    VerilatedVcdC vcd;
+    if (trace_on) {
+        top->trace(&vcd,0);
+        vcd.open("trace.vcd");
+    }
+
+    // init and run
+    top->aresetn = 0;
+    unsigned long ticks = 0;
+    unsigned long rst_ticks = 1000;
+    while (!Verilated::gotFinish() && sim_time > 0 && running) {
+        if (rst_ticks  > 0) {
+            top->aresetn = 0;
+            rst_ticks --;
+        }
+        else top->aresetn = 1;
+        top->aclk = !top->aclk;
+        if (top->aclk && top->aresetn) mmio_sigs.update_input(mmio_ref);
+        top->eval();
+        if (top->aclk && top->aresetn) {
+            confreg.tick();
+            mmio.beat(mmio_sigs_ref);
+            mmio_sigs.update_output(mmio_ref);
+            while (confreg_uart && confreg.has_uart()) printf("%c",confreg.get_uart());
+        }
+        running = confreg.do_trace(top->debug_wb_pc,top->debug_wb_rf_wen,top->debug_wb_rf_wnum,top->debug_wb_rf_wdata);
+        if (top->debug_wb_pc == 0xbfc00100u) running = false;
+        if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
+        if (trace_on) {
+            vcd.dump(ticks);
+            sim_time --;
+        }
+        ticks ++;
+    }
+    if (trace_on) vcd.close();
+    top->final();
+}
+
 int main(int argc, char** argv, char** env) {
     Verilated::commandArgs(argc, argv);
 
@@ -295,7 +356,7 @@ int main(int argc, char** argv, char** env) {
         running = false;
     });
 
-    enum {FUNC, PERF, SYS_TEST, RUN_OS} run_mode;
+    enum {FUNC, PERF, SYS_TEST, RUN_OS, PERF_DIFF} run_mode;
 
     int perf_start = 1;
     int perf_end = 10;
@@ -318,6 +379,9 @@ int main(int argc, char** argv, char** env) {
         }
         else if (strcmp(argv[i],"-perf") == 0) {
             run_mode = PERF;
+        }
+        else if (strcmp(argv[i],"-perfdiff") == 0) {
+            run_mode = PERF_DIFF;
         }
         else if (strcmp(argv[i],"-uart") == 0) {
             confreg_uart = true;
@@ -355,6 +419,9 @@ int main(int argc, char** argv, char** env) {
                 printf("Warning: You should better set perf program.\n");
             }
             perf_run(top, mmio_ref, perf_start, perf_end);
+            break;
+        case PERF_DIFF:
+            perf_diff_run(top, mmio_ref);
             break;
         default:
             printf("Unknown running mode.\n");
