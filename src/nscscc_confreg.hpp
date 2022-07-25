@@ -180,7 +180,7 @@ public:
         return true;
     }
     bool trace_on() {
-        return open_trace != 0;
+        return open_trace != 0 || force_trace;
     }
     void set_switch(uint8_t value) {
         switch_data = value ^ 0xf;
@@ -212,8 +212,7 @@ public:
         uint32_t ref_wnum;
         uint32_t ref_wdata;
         if (trace_on() && wen && wnum) {
-            while (trace_file >> std::hex >> trace_cmp_flag >> ref_pc >> ref_wnum >> ref_wdata && !trace_cmp_flag) {
-
+            while (trace_file >> std::hex >> trace_cmp_flag >> ref_pc >> ref_wnum >> ref_wdata && (!trace_cmp_flag && !force_trace)) {
             }
             if (pc != ref_pc || wnum != ref_wnum || wdata != ref_wdata) {
                 if (output) {
@@ -225,6 +224,9 @@ public:
             }
         }
         return true;
+    }
+    void set_force_trace(bool value) {
+        force_trace = value;
     }
 private:
     std::ifstream trace_file;
@@ -242,6 +244,7 @@ private:
     unsigned int open_trace;
     unsigned int num_monitor;
     std::queue <char> uart_queue;
+    bool force_trace = false;
 };
 
 #endif

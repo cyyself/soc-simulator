@@ -307,6 +307,7 @@ void perf_diff_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
 
     // confreg at 0x1faf0000
     nscscc_confreg confreg(true);
+    confreg.set_force_trace(true);
     confreg.set_trace_file("../CO-lab-material-CQU/test/perf_test_debug/cpu132_gettrace/golden_trace_allbench.txt");
     assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
 
