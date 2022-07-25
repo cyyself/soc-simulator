@@ -59,6 +59,7 @@ bool running = true;
 bool trace_on = false;
 bool trace_pc = false;
 bool confreg_uart = false;
+bool perf_stat = false;
 long sim_time = 1e3;
 
 void uart_input(uart8250 &uart) {
@@ -219,7 +220,8 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
         top->trace(&vcd,0);
     }
     unsigned long ticks = 0;
-
+    uint32_t last_wb_pc[2] = {0,0};
+    uint32_t cur_wb_pc[2] = {0,0};
     // init and run
     for (int test=test_start;test<=test_end;test++) {
         running = true;
@@ -229,6 +231,12 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
         ss << "trace-perf-" << test << ".vcd";
         if (trace_on) vcd.open(ss.str().c_str());
         unsigned long rst_ticks = 1000;
+        // dual-issue-statistic {
+        unsigned long total_clk = 0;
+        unsigned long stall_clk = 0;
+        unsigned long dual_commit = 0;
+        unsigned long has_commit = 0;
+        // dual-issue-statistic }
         while (!Verilated::gotFinish() && sim_time > 0 && running) {
             if (rst_ticks  > 0) {
                 top->aresetn = 0;
@@ -250,10 +258,31 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
                 vcd.dump(ticks);
                 sim_time --;
             }
+            // dual-issue-statistic {
+            cur_wb_pc[top->aclk] = top->debug_wb_pc;
+            if (!top->aclk) {
+                total_clk ++;
+                bool is_stall = false;
+                if (last_wb_pc[0] == cur_wb_pc[0] && last_wb_pc[1] == cur_wb_pc[1]) {
+                    // pipeline stall
+                    is_stall = true;
+                }
+                if (is_stall) stall_clk ++;
+                else {
+                    if (last_wb_pc[1]) { // master
+                        has_commit ++;
+                        if (last_wb_pc[0]) dual_commit ++;
+                    }
+                }
+                last_wb_pc[0] = cur_wb_pc[0];
+                last_wb_pc[1] = cur_wb_pc[1];
+            }
+            // dual-issue-statistic }
             ticks ++;
         }
         if (trace_on) vcd.close();
         printf("%x\n",confreg.get_num());
+        if (perf_stat) printf("total_clk = %lu, stall_clk = %lu, has_commit = %lu, dual_commit = %lu, dual_issue_rate = %0.5lf, IPC = %0.5lf\n", total_clk, stall_clk, has_commit, dual_commit, (double)dual_commit / has_commit, (double)(has_commit + dual_commit) / total_clk);
     }
     top->final();
     printf("total ticks = %lu\n", ticks);
@@ -299,6 +328,9 @@ int main(int argc, char** argv, char** env) {
                 perf_end = perf_start;
                 printf("set performance test program to %d\n",perf_start);
             }
+        }
+        else if (strcmp(argv[i],"-stat") == 0) {
+            perf_stat = true;
         }
     }
     Verilated::traceEverOn(trace_on);
