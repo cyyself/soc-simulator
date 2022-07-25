@@ -269,9 +269,9 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
                 }
                 if (is_stall) stall_clk ++;
                 else {
-                    if (last_wb_pc[1]) { // master
+                    if (cur_wb_pc[1]) { // master
                         has_commit ++;
-                        if (last_wb_pc[0]) dual_commit ++;
+                        if (cur_wb_pc[0]) dual_commit ++;
                     }
                 }
                 last_wb_pc[0] = cur_wb_pc[0];
