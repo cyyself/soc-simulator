@@ -166,41 +166,35 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     // init and run
     top->aresetn = 0;
     unsigned long ticks = 0;
+    unsigned long rst_ticks = 1000;
     int test_point = 0;
     while (!Verilated::gotFinish() && sim_time > 0 && running) {
-        top->eval();
-        ticks ++;
-        running = confreg.do_trace(top->debug_wb_pc,top->debug_wb_rf_wen,top->debug_wb_rf_wnum,top->debug_wb_rf_wdata);
-        if (top->debug_wb_pc == 0xbfc00100u) running = false;
-        if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
-        if (trace_on) {
-            vcd.dump(ticks);
-            sim_time --;
+        if (rst_ticks  > 0) {
+            top->aresetn = 0;
+            rst_ticks --;
         }
-        if (ticks == 9) top->aresetn = 1;
-        top->aclk = 1;
-        // posedge
-        mmio_sigs.update_input(mmio_ref);
+        else top->aresetn = 1;
+        top->aclk = !top->aclk;
+        if (top->aclk && top->aresetn) mmio_sigs.update_input(mmio_ref);
         top->eval();
-        confreg.tick();
-        ticks ++;
-        if (top->aresetn) {
+        if (top->aclk && top->aresetn) {
+            confreg.tick();
             mmio.beat(mmio_sigs_ref);
+            mmio_sigs.update_output(mmio_ref);
+            while (confreg_uart && confreg.has_uart()) printf("%c",confreg.get_uart());
+            if (confreg.get_num() != test_point) {
+                test_point = confreg.get_num();
+                printf("Number %d Functional Test Point PASS!\n", test_point>>24);
+            }
         }
-        mmio_sigs.update_output(mmio_ref);
         running = confreg.do_trace(top->debug_wb_pc,top->debug_wb_rf_wen,top->debug_wb_rf_wnum,top->debug_wb_rf_wdata);
-        while (confreg_uart && confreg.has_uart()) printf("%c",confreg.get_uart());
-        if (confreg.get_num() != test_point) {
-            test_point = confreg.get_num();
-            printf("Number %d Functional Test Point PASS!\n", test_point>>24);
-        }
         if (top->debug_wb_pc == 0xbfc00100u) running = false;
         if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
         if (trace_on) {
             vcd.dump(ticks);
             sim_time --;
         }
-        top->aclk = 0;
+        ticks ++;
     }
     if (trace_on) vcd.close();
     top->final();
@@ -234,39 +228,29 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
         std::stringstream ss;
         ss << "trace-perf-" << test << ".vcd";
         if (trace_on) vcd.open(ss.str().c_str());
-        unsigned long rst_ticks = 10;
+        unsigned long rst_ticks = 1000;
         while (!Verilated::gotFinish() && sim_time > 0 && running) {
-            top->eval();
-            ticks ++;
-            if (top->debug_wb_pc == 0xbfc00100u) running = false;
-            if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
-            if (trace_on) {
-                vcd.dump(ticks);
-                sim_time --;
-            }
             if (rst_ticks  > 0) {
                 top->aresetn = 0;
                 rst_ticks --;
             }
-            else top->aresetn = 1   ;
-            top->aclk = 1;
-            // posedge
-            mmio_sigs.update_input(mmio_ref);
+            else top->aresetn = 1;
+            top->aclk = !top->aclk;
+            if (top->aclk && top->aresetn) mmio_sigs.update_input(mmio_ref);
             top->eval();
-            confreg.tick();
-            ticks ++;
-            if (top->aresetn) {
+            if (top->aclk && top->aresetn) {
+                confreg.tick();
                 mmio.beat(mmio_sigs_ref);
+                mmio_sigs.update_output(mmio_ref);
+                while (confreg_uart && confreg.has_uart()) printf("%c",confreg.get_uart());
             }
-            mmio_sigs.update_output(mmio_ref);
-            while (confreg_uart && confreg.has_uart()) printf("%c",confreg.get_uart());
             if (top->debug_wb_pc == 0xbfc00100u) running = false;
             if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
             if (trace_on) {
                 vcd.dump(ticks);
                 sim_time --;
             }
-            top->aclk = 0;
+            ticks ++;
         }
         if (trace_on) vcd.close();
         printf("%x\n",confreg.get_num());
