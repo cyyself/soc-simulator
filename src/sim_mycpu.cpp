@@ -370,6 +370,8 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
         ss << "trace-perf-" << test << ".vcd";
         if (trace_on) vcd.open(ss.str().c_str());
         unsigned long rst_ticks = 1000;
+        unsigned long last_commit = ticks;
+        unsigned long commit_timeout = 5000;
         cemu_mips.reset();
         while (!Verilated::gotFinish() && sim_time > 0 && running) {
             if (rst_ticks  > 0) {
@@ -415,6 +417,11 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
                     // printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_mips.debug_wb_pc, cemu_mips.debug_wb_wnum, cemu_mips.debug_wb_wdata);
                     // printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
                 }
+                last_commit = ticks;
+            }
+            if (ticks - last_commit >= commit_timeout) {
+                printf("ERROR: There is %lu cycles since last commit\n", commit_timeout);
+                running = false;
             }
             // trace with cemu }
             ticks ++;
@@ -504,6 +511,9 @@ int main(int argc, char** argv, char** env) {
             cemu_func();
             break;
         case CEMU_PERF_DIFF:
+            if (trace_on && perf_start != perf_end) {
+                printf("Warning: You should better set perf program.\n");
+            }
             cemu_perf_diff(top, mmio_ref, perf_start, perf_end);
             break;
         default:
