@@ -63,6 +63,7 @@ bool trace_pc = false;
 bool confreg_uart = false;
 bool perf_stat = false;
 long sim_time = 1e3;
+bool diff_uart = false;
 
 void uart_input(uart8250 &uart) {
     termios tmp;
@@ -420,8 +421,16 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
                 last_commit = ticks;
             }
             if (ticks - last_commit >= commit_timeout) {
-                printf("ERROR: There is %lu cycles since last commit\n", commit_timeout);
+                printf("ERROR: There are %lu cycles since last commit\n", commit_timeout);
                 running = false;
+            }
+            while (diff_uart && confreg.has_uart() && cemu_confreg.has_uart()) {
+                char mycpu_uart = confreg.get_uart();
+                char ref_uart = cemu_confreg.get_uart();
+                if (mycpu_uart != ref_uart) {
+                    printf("ERROR!\n UART different at %lu ticks.\n", ticks);
+                    running = false;
+                }
             }
             // trace with cemu }
             ticks ++;
@@ -483,6 +492,9 @@ int main(int argc, char** argv, char** env) {
         else if (strcmp(argv[i],"-perfdiff") == 0) {
             run_mode = CEMU_PERF_DIFF;
         }
+        else if (strcmp(argv[i],"-diffuart") == 0) {
+            diff_uart = true;
+        }
     }
     Verilated::traceEverOn(trace_on);
     // setup soc
@@ -513,6 +525,9 @@ int main(int argc, char** argv, char** env) {
         case CEMU_PERF_DIFF:
             if (trace_on && perf_start != perf_end) {
                 printf("Warning: You should better set perf program.\n");
+            }
+            if (diff_uart) {
+                printf("diff uart is on\n");
             }
             cemu_perf_diff(top, mmio_ref, perf_start, perf_end);
             break;
