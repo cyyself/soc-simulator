@@ -429,6 +429,7 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
                 char ref_uart = cemu_confreg.get_uart();
                 if (mycpu_uart != ref_uart) {
                     printf("ERROR!\n UART different at %lu ticks.\n", ticks);
+                    printf("Expected: %08x, found: %08x\n", mycpu_uart, ref_uart);
                     running = false;
                 }
             }
