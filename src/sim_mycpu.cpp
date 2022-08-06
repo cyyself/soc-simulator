@@ -171,6 +171,8 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     top->aresetn = 0;
     unsigned long ticks = 0;
     unsigned long rst_ticks = 1000;
+    unsigned long last_commit = 0;
+    unsigned long commit_timeout = 5000;
     int test_point = 0;
     while (!Verilated::gotFinish() && sim_time > 0 && running) {
         if (rst_ticks  > 0) {
@@ -198,6 +200,11 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             vcd.dump(ticks);
             sim_time --;
         }
+        if (ticks - last_commit >= commit_timeout) {
+            printf("ERROR: There are %lu cycles since last commit\n", commit_timeout);
+            running = false;
+        }
+        else last_commit = ticks;
         ticks ++;
     }
     if (trace_on) vcd.close();
@@ -335,7 +342,7 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
     assert(cemu_mmio.add_dev(0x40000000,0x40000000,&cemu_func_mem));
     assert(cemu_mmio.add_dev(0x80000000,0x80000000,&cemu_func_mem));
 
-    nscscc_confreg cemu_confreg(true);
+    nscscc_confreg cemu_confreg(false);
     assert(cemu_mmio.add_dev(0x1faf0000,0x10000,&cemu_confreg));
 
     mips_core cemu_mips(cemu_mmio);
@@ -351,7 +358,7 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
     assert(mmio.add_dev(0x1fc00000,0x100000,&perf_mem));
 
     // confreg at 0x1faf0000
-    nscscc_confreg confreg(true);
+    nscscc_confreg confreg(false);
     assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
     
     // connect Vcd for trace
