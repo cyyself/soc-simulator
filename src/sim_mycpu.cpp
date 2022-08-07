@@ -251,6 +251,7 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
             if (rst_ticks  > 0) {
                 top->aresetn = 0;
                 rst_ticks --;
+                mmio.reset();
             }
             else top->aresetn = 1;
             top->aclk = !top->aclk;
@@ -385,6 +386,7 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
             if (rst_ticks  > 0) {
                 top->aresetn = 0;
                 rst_ticks --;
+                mmio.reset();
             }
             else top->aresetn = 1;
             top->aclk = !top->aclk;
