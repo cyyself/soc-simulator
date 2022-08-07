@@ -20,6 +20,15 @@ class axi4_slave {
             read_channel(pin);
             write_channel(pin);
         }
+        void reset() {
+            read_busy = false;
+            read_last = false;
+            read_wait = false;
+            read_delay = 0;
+            write_busy = false;
+            b_busy     = false;
+            write_delay = 0;
+        }
     protected:
         virtual axi_resp do_read (uint64_t start_addr, uint64_t size, uint8_t* buffer) = 0;
         virtual axi_resp do_write(uint64_t start_addr, uint64_t size, const uint8_t* buffer) = 0;
