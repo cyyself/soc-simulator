@@ -1,5 +1,5 @@
 TOP_NAME := mycpu_top
-SRC_DIR  := ../dev_bp/
+SRC_DIR  := ../NSCSCC-2022
 INC_FILE := $(shell find $(SRC_DIR) -name '*.vh') $(shell find $(SRC_DIR) -name '*.v') $(shell find $(SRC_DIR) -name '*.sv')
 .PHONY: obj_dir/V$(TOP_NAME)
 obj_dir/V$(TOP_NAME): src/* $(INC_FILE)
