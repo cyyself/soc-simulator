@@ -32,6 +32,9 @@
 #define OPEN_TRACE_ADDR     0xfff8  //32'hbfaf_fff8
 #define NUM_MONITOR_ADDR    0xfffc  //32'hbfaf_fffc
 
+uint32_t last_pc;
+uint32_t last_wnum;
+uint32_t last_wdata;
 // physical address = [0x1faf0000,0x1fafffff]
 class nscscc_confreg : public mmio_dev {
 public:
@@ -211,16 +214,27 @@ public:
         uint32_t ref_pc;
         uint32_t ref_wnum;
         uint32_t ref_wdata;
+        // TODO: 可以全局开一个上一个地址保存，error时一起输出？
         if (trace_on() && wen && wnum) {
             while (trace_file >> std::hex >> trace_cmp_flag >> ref_pc >> ref_wnum >> ref_wdata && (!trace_cmp_flag && !force_trace)) {
             }
             if (pc != ref_pc || wnum != ref_wnum || wdata != ref_wdata) {
                 if (output) {
                     printf("Error!\n");
+                    printf("last     : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", last_pc, last_wnum, last_wdata);
                     printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", ref_pc, ref_wnum, ref_wdata);
                     printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", pc, wnum, wdata);
                 }
                 return false;
+            }else{
+                // if (output) {
+                //     printf("OK!\n");
+                //     printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", ref_pc, ref_wnum, ref_wdata);
+                //     printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", pc, wnum, wdata);
+                // }
+                last_pc = pc;
+                last_wnum = wnum;
+                last_wdata = wdata;
             }
         }
         return true;
