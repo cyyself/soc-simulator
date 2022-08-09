@@ -259,7 +259,8 @@ class axi4_slave {
             }
             pin.bvalid = b_busy;
             pin.awready = !write_busy && !b_busy;
-            pin.wready  = !b_busy && !write_delay;
+            if (delay) pin.wready = write_busy && !write_delay;
+            else pin.wready = !b_busy;
         }
 };
 
