@@ -61,6 +61,16 @@ class mmio_mem : public mmio_dev  {
             }
             else return false;
         }
+        void load_binary(uint64_t start_addr, const char *init_file) {
+            std::ifstream file(init_file,std::ios::in | std::ios::binary | std::ios::ate);
+            size_t file_size = file.tellg();
+            file.seekg(std::ios_base::beg);
+            if (start_addr >= mem_size || file_size > mem_size - start_addr) {
+                std::cerr << "memory size is not big enough for init file." << std::endl;
+                file_size = mem_size;
+            }
+            file.read((char*)mem+start_addr,file_size);
+        }
         void set_allow_warp(bool value) {
             allow_warp = true;
         }
