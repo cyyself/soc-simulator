@@ -293,7 +293,12 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
         }
         if (trace_on) vcd.close();
         printf("%x\n",confreg.get_num());
-        if (perf_stat) printf("total_clk = %lu, stall_clk = %lu, has_commit = %lu, dual_commit = %lu, dual_issue_rate = %0.5lf, IPC = %0.5lf\n", total_clk, stall_clk, has_commit, dual_commit, (double)dual_commit / has_commit, (double)(has_commit + dual_commit) / total_clk);
+        if (perf_stat) {
+            printf("total_clk = %lu, stall_clk = %lu, has_commit = %lu, dual_commit = %lu, dual_issue_rate = %0.5lf, IPC = %0.5lf\n", total_clk, stall_clk, has_commit, dual_commit, (double)dual_commit / has_commit, (double)(has_commit + dual_commit) / total_clk);
+            // printf("confreg_read: %d, confreg_write: %d\n", confreg.confreg_read, confreg.confreg_write);
+            confreg.confreg_read = 0;
+            confreg.confreg_write = 0;
+        }
     }
     top->final();
     printf("total ticks = %lu\n", ticks);
@@ -555,6 +560,148 @@ void cemu_sys_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     if (trace_on) vcd.close();
 }
 
+#define UART_BUFFER_SIZE 512
+
+static char uart_buffer[UART_BUFFER_SIZE];
+int uart_buffer_ptr;
+
+bool uart_buffer_compare(const char *s) {
+    assert(strlen(s) < UART_BUFFER_SIZE);
+    int start_addr = (uart_buffer_ptr - strlen(s) + UART_BUFFER_SIZE) % UART_BUFFER_SIZE;
+    for (int i=0;i<strlen(s);i++) {
+        if (uart_buffer[(start_addr+i) % UART_BUFFER_SIZE] != s[i]) return false;
+    }
+    return true;
+}
+
+void ucore_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
+    axi4     <32,32,4> mmio_sigs;
+    axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
+    axi4_xbar<32,32,4> mmio;
+
+    // uart8250 at 0x1fe40000 (APB)
+    uart8250 uart;
+    std::thread *uart_input_thread = new std::thread(uart_input,std::ref(uart));
+    assert(mmio.add_dev(0x1fe40000,0x10000,&uart));
+
+    // DRAM(128M) at 0x00000000
+    mmio_mem dram(0x8000000, "../ucore-thumips/obj/ucore-kernel-initrd.bin");
+    assert(mmio.add_dev(0x0,0x8000000,&dram));
+
+    // connect Vcd for trace
+    VerilatedVcdC vcd;
+    if (trace_on) {
+        top->trace(&vcd,0);
+        vcd.open("trace.vcd");
+    }
+
+    // init and run
+    top->aresetn = 0;
+    unsigned long ticks = 0;
+    while (!Verilated::gotFinish() && sim_time > 0 && running) {
+        top->eval();
+        ticks ++;
+        if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
+        if (trace_on) {
+            vcd.dump(ticks);
+            sim_time --;
+        }
+        if (ticks == 9) top->aresetn = 1;
+        top->aclk = 1;
+        // posedge
+        mmio_sigs.update_input(mmio_ref);
+        top->eval();
+        ticks ++;
+        if (top->aresetn) {
+            mmio.beat(mmio_sigs_ref);
+            while (uart.exist_tx()) {
+                char c = uart.getc();
+                printf("%c",c);
+                uart_buffer[(uart_buffer_ptr+1)%UART_BUFFER_SIZE] = c;
+                uart_buffer_ptr = (uart_buffer_ptr + 1) % UART_BUFFER_SIZE;
+                fflush(stdout);
+                if (uart_buffer_compare("kernel_execve: pid = 2, name = \"sh\".")) {
+                    //printf("[SoC-Simulator] trace on!\n");
+                    //trace_on = true;
+                }
+            }
+        }
+        mmio_sigs.update_output(mmio_ref);
+        if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
+        if (trace_on) {
+            vcd.dump(ticks);
+            sim_time --;
+        }
+        top->ext_int = uart.irq() << 2;
+        top->aclk = 0;
+    }
+    if (trace_on) vcd.close();
+    top->final();
+    pthread_kill(uart_input_thread->native_handle(),SIGKILL);
+}
+
+void linux_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
+    axi4     <32,32,4> mmio_sigs;
+    axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
+    axi4_xbar<32,32,4> mmio;
+
+    // uart8250 at 0x1fe40000 (APB)
+    uart8250 uart;
+    std::thread *uart_input_thread = new std::thread(uart_input,std::ref(uart));
+    assert(mmio.add_dev(0x1fe40000,0x10000,&uart));
+
+    // DRAM(128M) at 0x00000000
+    mmio_mem dram(0x8000000);
+    dram.load_binary(0x100000, "../linux/vmlinux.bin");
+    assert(mmio.add_dev(0x0,0x8000000,&dram));
+
+    // connect Vcd for trace
+    VerilatedVcdC vcd;
+    if (trace_on) {
+        top->trace(&vcd,0);
+        vcd.open("trace.vcd");
+    }
+
+    // init and run
+    top->aresetn = 0;
+    unsigned long ticks = 0;
+    while (!Verilated::gotFinish() && sim_time > 0 && running) {
+        top->eval();
+        ticks ++;
+        if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
+        if (trace_on) {
+            vcd.dump(ticks);
+            sim_time --;
+        }
+        if (ticks == 9) top->aresetn = 1;
+        top->aclk = 1;
+        // posedge
+        mmio_sigs.update_input(mmio_ref);
+        top->eval();
+        ticks ++;
+        if (top->aresetn) {
+            mmio.beat(mmio_sigs_ref);
+            while (uart.exist_tx()) {
+                char c = uart.getc();
+                printf("%c",c);
+                fflush(stdout);
+            }
+        }
+        mmio_sigs.update_output(mmio_ref);
+        if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
+        if (trace_on) {
+            vcd.dump(ticks);
+            sim_time --;
+        }
+        top->ext_int = uart.irq() << 2;
+        top->aclk = 0;
+    }
+    if (trace_on) vcd.close();
+    top->final();
+    pthread_kill(uart_input_thread->native_handle(),SIGKILL);
+}
+
+
 int main(int argc, char** argv, char** env) {
     Verilated::commandArgs(argc, argv);
 
@@ -562,7 +709,7 @@ int main(int argc, char** argv, char** env) {
         running = false;
     });
 
-    enum {NOP, FUNC, PERF, SYS_TEST, RUN_OS, CEMU_FUNC, CEMU_PERF_DIFF, CEMU_SYS_DIFF} run_mode = NOP;
+    enum {NOP, FUNC, PERF, SYS_TEST, RUN_OS, CEMU_FUNC, CEMU_PERF_DIFF, CEMU_SYS_DIFF, UCORE, LINUX} run_mode = NOP;
 
     int perf_start = 1;
     int perf_end = 10;
@@ -611,6 +758,12 @@ int main(int argc, char** argv, char** env) {
         else if (strcmp(argv[i],"-sysdiff") == 0) {
             run_mode = CEMU_SYS_DIFF;
         }
+        else if (strcmp(argv[i],"-ucore") == 0) {
+            run_mode = UCORE;
+        }
+        else if (strcmp(argv[i],"-linux") == 0) {
+            run_mode = LINUX;
+        }
     }
     Verilated::traceEverOn(trace_on);
     // setup soc
@@ -649,6 +802,12 @@ int main(int argc, char** argv, char** env) {
             break;
         case CEMU_SYS_DIFF:
             cemu_sys_diff(top, mmio_ref);
+            break;
+        case UCORE:
+            ucore_run(top, mmio_ref);
+            break;
+        case LINUX:
+            linux_run(top, mmio_ref);
             break;
         default:
             printf("Unknown running mode.\n");

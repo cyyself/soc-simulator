@@ -38,6 +38,8 @@ uint32_t last_wdata;
 // physical address = [0x1faf0000,0x1fafffff]
 class nscscc_confreg : public mmio_dev {
 public:
+    unsigned int confreg_read = 0;
+    unsigned int confreg_write = 0;
     nscscc_confreg(bool simulation = false) {
         timer = 0;
         memset(cr,0,sizeof(cr));
@@ -56,6 +58,7 @@ public:
         timer ++;
     }
     bool do_read(unsigned long start_addr, unsigned long size, unsigned char* buffer) {
+        confreg_read ++;
         assert(size == 4);
         switch (start_addr) {
             case CR0_ADDR:
@@ -131,6 +134,7 @@ public:
         return true;
     }
     bool do_write(unsigned long start_addr, unsigned long size, const unsigned char* buffer) {
+        confreg_write ++;
         assert(size == 4 || (size == 1 && start_addr == VIRTUAL_UART_ADDR));
         switch (start_addr) {
             case CR0_ADDR:
