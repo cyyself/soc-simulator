@@ -825,7 +825,7 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
                     cemu_mips.debug_wb_wnum  != top->debug_wb_rf_wnum ||
                     (cemu_mips.debug_wb_wdata != top->debug_wb_rf_wdata) )
                 ) {
-                    printf("Error!\n");
+                    printf("Error at %ld ps!\n",ticks);
                     printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_mips.debug_wb_pc, cemu_mips.debug_wb_wnum, cemu_mips.debug_wb_wdata);
                     printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
                     running = false;
@@ -868,6 +868,127 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     if (trace_on) vcd.close();
 }
 
+void cemu_ucore_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
+    // cemu {
+    memory_bus cemu_mmio;
+
+    uart8250 cemu_uart;
+    assert(cemu_mmio.add_dev(0x1fe40000,0x10000,&cemu_uart));
+
+    mmio_mem cemu_dram(0x8000000, "../ucore-thumips/obj/ucore-kernel-initrd.bin");
+    assert(cemu_mmio.add_dev(0x0,0x8000000,&cemu_dram));
+
+    mips_core cemu_mips(cemu_mmio);
+    // cemu }
+
+    // rtl soc-simulator {
+    axi4     <32,32,4> mmio_sigs;
+    axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
+    axi4_xbar<32,32,4> mmio(23);
+
+    uart8250 uart;
+    assert(mmio.add_dev(0x1fe40000,0x10000,&uart));
+
+    mmio_mem dram(0x8000000, "../ucore-thumips/obj/ucore-kernel-initrd.bin");
+    assert(mmio.add_dev(0x0,0x8000000,&dram));
+
+    // connect Vcd for trace
+    VerilatedVcdC vcd;
+    if (trace_on | cond_trace_on) {
+        top->trace(&vcd,0);
+        vcd.open("trace.vcd");
+    }
+    unsigned long ticks = 0;
+    // rtl soc-simulator }
+
+    top->aresetn = 0;
+    long rst_ticks = 1000;
+    long last_commit = 0;
+    long commit_timeout = 100000;
+    cemu_mips.reset();
+    cemu_mips.jump(0x80000000);
+    cemu_mips.set_difftest_mode(true);
+
+    while (!Verilated::gotFinish() && sim_time > 0 && running) {
+        if (rst_ticks  > 0) {
+            top->aresetn = 0;
+            rst_ticks --;
+        }
+        else top->aresetn = 1;
+        top->aclk = !top->aclk;
+        if (top->aclk && top->aresetn) mmio_sigs.update_input(mmio_ref);
+        top->eval();
+        if (top->aclk && top->aresetn) {
+            mmio.beat(mmio_sigs_ref);
+            mmio_sigs.update_output(mmio_ref);
+            while (uart.exist_tx()) {
+                char c = uart.getc();
+                printf("%c",c);
+                fflush(stdout);
+            }
+        }
+        if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
+        if (trace_on) {
+            vcd.dump(ticks);
+            sim_time --;
+        }
+        // trace with cemu {
+        if (top->debug_commit) {
+            last_commit = ticks;
+            if (top->debug_wb_pc) {
+                if (top->aclk) { // posedge
+                    cemu_mips.import_diff_test_info(top->debug_cp0_count, top->debug_cp0_random, top->debug_cp0_cause, top->debug_int);
+                }
+                cemu_mips.step();
+                if ( top->debug_wb_rf_wen && (
+                    cemu_mips.debug_wb_pc    != top->debug_wb_pc      || 
+                    cemu_mips.debug_wb_wnum  != top->debug_wb_rf_wnum ||
+                    (cemu_mips.debug_wb_wdata != top->debug_wb_rf_wdata))
+                ) {
+                    printf("Error at %ld ps!\n",ticks);
+                    printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_mips.debug_wb_pc, cemu_mips.debug_wb_wnum, cemu_mips.debug_wb_wdata);
+                    printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
+                    running = false;
+                }
+            }
+        }
+        /*
+        if (top->debug_wb_rf_wen && top->debug_wb_rf_wnum) {
+            do {
+                cemu_mips.step();
+            } while(!(cemu_mips.debug_wb_wen && cemu_mips.debug_wb_wnum));
+            if ( cemu_mips.debug_wb_pc    != top->debug_wb_pc      || 
+                    cemu_mips.debug_wb_wnum  != top->debug_wb_rf_wnum ||
+                (cemu_mips.debug_wb_wdata != top->debug_wb_rf_wdata && !cemu_mips.debug_wb_is_timer)
+            ) {
+                printf("Error!\n");
+                printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_mips.debug_wb_pc, cemu_mips.debug_wb_wnum, cemu_mips.debug_wb_wdata);
+                printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
+                running = false;
+            }
+            else {
+                if (cemu_mips.debug_wb_is_timer) {
+                    cemu_mips.set_GPR(cemu_mips.debug_wb_wnum, top->debug_wb_rf_wdata);
+                }
+                // printf("OK!\n");
+                // printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_mips.debug_wb_pc, cemu_mips.debug_wb_wnum, cemu_mips.debug_wb_wdata);
+                // printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
+            }
+            last_commit = ticks;
+        }
+        */
+        if (ticks - last_commit >= commit_timeout) {
+            printf("ERROR: There are %lu cycles since last commit\n", commit_timeout);
+            running = false;
+        }
+        // trace with cemu }
+        ticks ++;
+    }
+    top->final();
+    if (trace_on) vcd.close();
+}
+
+
 int main(int argc, char** argv, char** env) {
     Verilated::commandArgs(argc, argv);
 
@@ -875,7 +996,7 @@ int main(int argc, char** argv, char** env) {
         running = false;
     });
 
-    enum {NOP, FUNC, PERF, SYS_TEST, RUN_OS, CEMU_FUNC, CEMU_PERF_DIFF, CEMU_SYS_DIFF, UCORE, LINUX, CEMU_LINUX_DIFF} run_mode = NOP;
+    enum {NOP, FUNC, PERF, SYS_TEST, RUN_OS, CEMU_FUNC, CEMU_PERF_DIFF, CEMU_SYS_DIFF, UCORE, CEMU_UCORE_DIFF ,LINUX, CEMU_LINUX_DIFF} run_mode = NOP;
 
     int perf_start = 1;
     int perf_end = 10;
@@ -933,6 +1054,9 @@ int main(int argc, char** argv, char** env) {
         else if (strcmp(argv[i],"-ucore") == 0) {
             run_mode = UCORE;
         }
+        else if (strcmp(argv[i],"-ucorediff") == 0) {
+            run_mode = CEMU_UCORE_DIFF;
+        }
         else if (strcmp(argv[i],"-linux") == 0) {
             run_mode = LINUX;
         }
@@ -981,6 +1105,9 @@ int main(int argc, char** argv, char** env) {
             break;
         case UCORE:
             ucore_run(top, mmio_ref);
+            break;
+        case CEMU_UCORE_DIFF:
+            cemu_ucore_diff(top, mmio_ref);
             break;
         case LINUX:
             linux_run(top, mmio_ref);
