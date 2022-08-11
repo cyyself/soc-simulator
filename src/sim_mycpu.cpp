@@ -1,5 +1,7 @@
 #include "verilated.h"
 #include "verilated_vcd_c.h"
+#include "svdpi.h"
+// #include "Vmycpu_top__Dpi.h"
 #include "Vmycpu_top.h"
 
 #include "axi4.hpp"
@@ -59,6 +61,7 @@ void connect_wire(axi4_ptr <32,32,4> &mmio_ptr, Vmycpu_top *top) {
 
 bool running = true;
 bool trace_on = false;
+bool cond_trace_on = false;
 bool trace_pc = false;
 bool confreg_uart = false;
 bool perf_stat = false;
@@ -74,8 +77,9 @@ void uart_input(uart8250 &uart) {
     tcsetattr(STDIN_FILENO,TCSANOW,&tmp);
     while (running) {
         char c = getchar();
-        /* if (c == 'p') printf("pc = %x\n",*pc);
-        else */ if (c == 10) c = 13; // convert lf to cr
+        if (c == 'p') printf("pc = %x\n",*pc);
+        else if (c == 't') trace_on = true;
+        else if (c == 10) c = 13; // convert lf to cr
         uart.putc(c);
     }
 }
@@ -593,7 +597,7 @@ void ucore_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
 
     // connect Vcd for trace
     VerilatedVcdC vcd;
-    if (trace_on) {
+    if (trace_on | cond_trace_on) {
         top->trace(&vcd,0);
         vcd.open("trace.vcd");
     }
@@ -648,10 +652,17 @@ void ucore_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             printf("ERROR: There are %lu cycles since last commit at %lu ps.\n", commit_timeout, ticks);
             running = false;
         }
+        // if (top->debug_pc_next == 0x80006380u) trace_on = true;
     }
     if (trace_on) vcd.close();
     top->final();
     pthread_kill(uart_input_thread->native_handle(),SIGKILL);
+}
+
+void report_tlb_exception() {
+    static int cnt;
+    cnt ++;
+    // if (cnt == 2) trace_on = true;
 }
 
 void linux_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
@@ -671,7 +682,7 @@ void linux_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
 
     // connect Vcd for trace
     VerilatedVcdC vcd;
-    if (trace_on) {
+    if (trace_on | cond_trace_on) {
         top->trace(&vcd,0);
         vcd.open("trace.vcd");
     }
@@ -701,6 +712,15 @@ void linux_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
                 char c = uart.getc();
                 printf("%c",c);
                 fflush(stdout);
+                /*
+                uart_buffer[(uart_buffer_ptr+1)%UART_BUFFER_SIZE] = c;
+                uart_buffer_ptr = (uart_buffer_ptr + 1) % UART_BUFFER_SIZE;
+                fflush(stdout);
+                if (uart_buffer_compare("[    0.143197] futex hash table entries: 256 (order: -1, 3072 bytes, linear)")) {
+                    printf("[SoC-Simulator] trace on!\n");
+                    trace_on = true;
+                }
+                */
             }
         }
         mmio_sigs.update_output(mmio_ref);
@@ -718,6 +738,8 @@ void linux_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             printf("ERROR: There are %lu cycles since last commit at %lu ps.\n", commit_timeout, ticks);
             running = false;
         }
+        // if (ticks == 180136000) trace_on = true;
+        //if (top->debug_pc_next == 0x801a171cu) trace_on = true;
     }
     if (trace_on) vcd.close();
     top->final();
@@ -752,7 +774,7 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
 
     // connect Vcd for trace
     VerilatedVcdC vcd;
-    if (trace_on) {
+    if (trace_on | cond_trace_on) {
         top->trace(&vcd,0);
         vcd.open("trace.vcd");
     }
@@ -762,9 +784,10 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     top->aresetn = 0;
     long rst_ticks = 1000;
     long last_commit = 0;
-    long commit_timeout = 10000;
+    long commit_timeout = 100000;
     cemu_mips.reset();
     cemu_mips.jump(0x80100000);
+    cemu_mips.set_difftest_mode(true);
 
     while (!Verilated::gotFinish() && sim_time > 0 && running) {
         if (rst_ticks  > 0) {
@@ -790,6 +813,26 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             sim_time --;
         }
         // trace with cemu {
+        if (top->debug_commit) {
+            last_commit = ticks;
+            if (top->debug_wb_pc) {
+                if (top->aclk) { // posedge
+                    cemu_mips.import_diff_test_info(top->debug_cp0_count, top->debug_cp0_random, top->debug_cp0_cause, top->debug_int);
+                }
+                cemu_mips.step();
+                if ( top->debug_wb_rf_wen && (
+                    cemu_mips.debug_wb_pc    != top->debug_wb_pc      || 
+                    cemu_mips.debug_wb_wnum  != top->debug_wb_rf_wnum ||
+                    (cemu_mips.debug_wb_wdata != top->debug_wb_rf_wdata) )
+                ) {
+                    printf("Error!\n");
+                    printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_mips.debug_wb_pc, cemu_mips.debug_wb_wnum, cemu_mips.debug_wb_wdata);
+                    printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
+                    running = false;
+                }
+            }
+        }
+        /*
         if (top->debug_wb_rf_wen && top->debug_wb_rf_wnum) {
             do {
                 cemu_mips.step();
@@ -813,6 +856,7 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             }
             last_commit = ticks;
         }
+        */
         if (ticks - last_commit >= commit_timeout) {
             printf("ERROR: There are %lu cycles since last commit\n", commit_timeout);
             running = false;
@@ -839,6 +883,12 @@ int main(int argc, char** argv, char** env) {
     for (int i=1;i<argc;i++) {
         if (strcmp(argv[i],"-trace") == 0) {
             trace_on = true;
+            if (i+1 < argc) {
+                sscanf(argv[++i],"%lu",&sim_time);
+            }
+        }
+        else if (strcmp(argv[i],"-condtrace") == 0) {
+            cond_trace_on = true;
             if (i+1 < argc) {
                 sscanf(argv[++i],"%lu",&sim_time);
             }
@@ -890,7 +940,7 @@ int main(int argc, char** argv, char** env) {
             run_mode = CEMU_LINUX_DIFF;
         }
     }
-    Verilated::traceEverOn(true);
+    Verilated::traceEverOn(trace_on | cond_trace_on);
     // setup soc
     Vmycpu_top *top = new Vmycpu_top;
     pc = &(top->debug_wb_pc);
