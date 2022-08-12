@@ -71,6 +71,10 @@ class mmio_mem : public mmio_dev  {
             }
             file.read((char*)mem+start_addr,file_size);
         }
+        void save_binary(const char *filename) {
+            std::ofstream file(filename, std::ios::out | std::ios::binary);
+            file.write((char*)mem, mem_size);
+        }
         void set_allow_warp(bool value) {
             allow_warp = true;
         }

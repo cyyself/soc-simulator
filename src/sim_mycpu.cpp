@@ -67,6 +67,8 @@ bool confreg_uart = false;
 bool perf_stat = false;
 long sim_time = 1e3;
 bool diff_uart = false;
+bool trace_start = false;
+long trace_start_time = 0;
 
 unsigned int *pc;
 
@@ -816,53 +818,40 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
         if (top->debug_commit) {
             last_commit = ticks;
             if (top->debug_wb_pc) {
-                if (top->aclk) { // posedge
-                    cemu_mips.import_diff_test_info(top->debug_cp0_count, top->debug_cp0_random, top->debug_cp0_cause, top->debug_int);
-                }
+                cemu_mips.import_diff_test_info(top->debug_cp0_count, top->debug_cp0_random, top->debug_cp0_cause, top->debug_int);
                 cemu_mips.step();
-                if ( top->debug_wb_rf_wen && (
-                    cemu_mips.debug_wb_pc    != top->debug_wb_pc      || 
+                if (cemu_mips.debug_wb_pc == 0x804523f0u) {
+                    cemu_mips.set_GPR(cemu_mips.debug_wb_wnum, top->debug_wb_rf_wdata);
+                }
+                if (
+                    cemu_mips.debug_wb_pc    != top->debug_wb_pc      || (
+                    cemu_mips.debug_wb_wen  && (
                     cemu_mips.debug_wb_wnum  != top->debug_wb_rf_wnum ||
-                    (cemu_mips.debug_wb_wdata != top->debug_wb_rf_wdata) )
+                    (cemu_mips.debug_wb_wdata != top->debug_wb_rf_wdata) ) )
                 ) {
                     printf("Error at %ld ps!\n",ticks);
+                    printf("last     : PC = 0x%08x\n", last_pc);
                     printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_mips.debug_wb_pc, cemu_mips.debug_wb_wnum, cemu_mips.debug_wb_wdata);
                     printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
                     running = false;
+                    printf("cemu pc history:\n");
+                    while (!cemu_mips.pc_trace.empty()) {
+                        printf("%x\n",cemu_mips.pc_trace.front());
+                        cemu_mips.pc_trace.pop();
+                    }
                 }
+                else last_pc = top->debug_wb_pc;
             }
         }
-        /*
-        if (top->debug_wb_rf_wen && top->debug_wb_rf_wnum) {
-            do {
-                cemu_mips.step();
-            } while(!(cemu_mips.debug_wb_wen && cemu_mips.debug_wb_wnum));
-            if ( cemu_mips.debug_wb_pc    != top->debug_wb_pc      || 
-                    cemu_mips.debug_wb_wnum  != top->debug_wb_rf_wnum ||
-                (cemu_mips.debug_wb_wdata != top->debug_wb_rf_wdata && !cemu_mips.debug_wb_is_timer)
-            ) {
-                printf("Error!\n");
-                printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_mips.debug_wb_pc, cemu_mips.debug_wb_wnum, cemu_mips.debug_wb_wdata);
-                printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
-                running = false;
-            }
-            else {
-                if (cemu_mips.debug_wb_is_timer) {
-                    cemu_mips.set_GPR(cemu_mips.debug_wb_wnum, top->debug_wb_rf_wdata);
-                }
-                // printf("OK!\n");
-                // printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_mips.debug_wb_pc, cemu_mips.debug_wb_wnum, cemu_mips.debug_wb_wdata);
-                // printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
-            }
-            last_commit = ticks;
-        }
-        */
         if (ticks - last_commit >= commit_timeout) {
             printf("ERROR: There are %lu cycles since last commit\n", commit_timeout);
             running = false;
         }
         // trace with cemu }
         ticks ++;
+        if (trace_start && ticks == trace_start_time) {
+            trace_on = true;
+        }
     }
     top->final();
     if (trace_on) vcd.close();
@@ -936,20 +925,23 @@ void cemu_ucore_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
         if (top->debug_commit) {
             last_commit = ticks;
             if (top->debug_wb_pc) {
-                if (top->aclk) { // posedge
-                    cemu_mips.import_diff_test_info(top->debug_cp0_count, top->debug_cp0_random, top->debug_cp0_cause, top->debug_int);
-                }
+                cemu_mips.import_diff_test_info(top->debug_cp0_count, top->debug_cp0_random, top->debug_cp0_cause, top->debug_int);
                 cemu_mips.step();
-                if ( top->debug_wb_rf_wen && (
-                    cemu_mips.debug_wb_pc    != top->debug_wb_pc      || 
+                if (
+                    cemu_mips.debug_wb_pc    != top->debug_wb_pc      || (
+                    cemu_mips.debug_wb_wen  && (
                     cemu_mips.debug_wb_wnum  != top->debug_wb_rf_wnum ||
-                    (cemu_mips.debug_wb_wdata != top->debug_wb_rf_wdata))
+                    (cemu_mips.debug_wb_wdata != top->debug_wb_rf_wdata) ) )
                 ) {
                     printf("Error at %ld ps!\n",ticks);
+                    printf("last     : PC = 0x%08x\n", last_pc);
                     printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_mips.debug_wb_pc, cemu_mips.debug_wb_wnum, cemu_mips.debug_wb_wdata);
                     printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
                     running = false;
+                    cemu_dram.save_binary("cemu_memory.dump");
+                    printf("cemu memory dumped!");
                 }
+                else last_pc = top->debug_wb_pc;
             }
         }
         /*
@@ -1012,6 +1004,13 @@ int main(int argc, char** argv, char** env) {
             cond_trace_on = true;
             if (i+1 < argc) {
                 sscanf(argv[++i],"%lu",&sim_time);
+            }
+        }
+        else if (strcmp(argv[i],"-starttrace") == 0) {
+            cond_trace_on = true;
+            trace_start = true;
+            if (i+1 < argc) {
+                sscanf(argv[++i],"%lu",&trace_start_time);
             }
         }
         else if (strcmp(argv[i],"-pc") == 0) {
