@@ -834,6 +834,8 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
                     printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_mips.debug_wb_pc, cemu_mips.debug_wb_wnum, cemu_mips.debug_wb_wdata);
                     printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
                     running = false;
+                    cemu_dram.save_binary("cemu_memory.dump");
+                    printf("cemu memory dumped!\n");
                     printf("cemu pc history:\n");
                     while (!cemu_mips.pc_trace.empty()) {
                         printf("%x\n",cemu_mips.pc_trace.front());
