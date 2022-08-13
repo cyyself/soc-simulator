@@ -661,6 +661,90 @@ void ucore_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     pthread_kill(uart_input_thread->native_handle(),SIGKILL);
 }
 
+
+void uboot_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
+    axi4     <32,32,4> mmio_sigs;
+    axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
+    axi4_xbar<32,32,4> mmio;
+
+    // uart8250 at 0x1fe40000 (APB)
+    uart8250 uart;
+    std::thread *uart_input_thread = new std::thread(uart_input,std::ref(uart));
+    assert(mmio.add_dev(0x1fe40000,0x10000,&uart));
+
+    // spi flash at 0x1fc00000
+    mmio_mem spi_flash(2048*1024, "../uboot-megasoc/u-boot.bin");
+    assert(mmio.add_dev(0x1fc00000,2048*1024,&spi_flash));
+
+    // dram at 0x0
+    mmio_mem dram(0x8000000);
+    assert(mmio.add_dev(0x0,0x8000000,&dram));
+
+    // connect Vcd for trace
+    VerilatedVcdC vcd;
+    if (trace_on | cond_trace_on) {
+        top->trace(&vcd,0);
+        vcd.open("trace.vcd");
+    }
+    unsigned long last_commit = 0;
+    unsigned long commit_timeout = 10000;
+
+    // init and run
+    top->aresetn = 0;
+    unsigned long ticks = 0;
+    while (!Verilated::gotFinish() && sim_time > 0 && running) {
+        top->eval();
+        ticks ++;
+        if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
+        if (trace_on) {
+            vcd.dump(ticks);
+            sim_time --;
+        }
+        if (ticks == 9) top->aresetn = 1;
+        top->aclk = 1;
+        // posedge
+        mmio_sigs.update_input(mmio_ref);
+        top->eval();
+        ticks ++;
+        if (top->aresetn) {
+            mmio.beat(mmio_sigs_ref);
+            while (uart.exist_tx()) {
+                char c = uart.getc();
+                printf("%c",c);
+                uart_buffer[(uart_buffer_ptr+1)%UART_BUFFER_SIZE] = c;
+                uart_buffer_ptr = (uart_buffer_ptr + 1) % UART_BUFFER_SIZE;
+                fflush(stdout);
+                /*
+                if (uart_buffer_compare("## enter handle_tlbmiss 7 times")) {
+                    printf("[SoC-Simulator] trace on!\n");
+                    trace_on = true;
+                }
+                 */
+            }
+        }
+        mmio_sigs.update_output(mmio_ref);
+        if (top->debug_wb_rf_wen) {
+            last_commit = ticks;
+            if (trace_pc) printf("pc = %lx\n", top->debug_wb_pc);
+        }
+        if (trace_on) {
+            vcd.dump(ticks);
+            sim_time --;
+        }
+        top->ext_int = uart.irq() << 1;
+        top->aclk = 0;
+        if (ticks - last_commit > commit_timeout) {
+            printf("ERROR: There are %lu cycles since last commit at %lu ps.\n", commit_timeout, ticks);
+            running = false;
+        }
+        // if (top->debug_pc_next == 0x80006380u) trace_on = true;
+    }
+    if (trace_on) vcd.close();
+    top->final();
+    pthread_kill(uart_input_thread->native_handle(),SIGKILL);
+}
+
+
 void report_tlb_exception() {
     static int cnt;
     cnt ++;
@@ -765,7 +849,7 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     // rtl soc-simulator {
     axi4     <32,32,4> mmio_sigs;
     axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
-    axi4_xbar<32,32,4> mmio(23);
+    axi4_xbar<32,32,4> mmio(0);
 
     uart8250 uart;
     assert(mmio.add_dev(0x1fe40000,0x10000,&uart));
@@ -990,7 +1074,7 @@ int main(int argc, char** argv, char** env) {
         running = false;
     });
 
-    enum {NOP, FUNC, PERF, SYS_TEST, RUN_OS, CEMU_FUNC, CEMU_PERF_DIFF, CEMU_SYS_DIFF, UCORE, CEMU_UCORE_DIFF ,LINUX, CEMU_LINUX_DIFF} run_mode = NOP;
+    enum {NOP, FUNC, PERF, SYS_TEST, RUN_OS, CEMU_FUNC, CEMU_PERF_DIFF, CEMU_SYS_DIFF, UCORE, CEMU_UCORE_DIFF ,LINUX, CEMU_LINUX_DIFF, UBOOT} run_mode = NOP;
 
     int perf_start = 1;
     int perf_end = 10;
@@ -1064,6 +1148,9 @@ int main(int argc, char** argv, char** env) {
         else if (strcmp(argv[i],"-linuxdiff") == 0) {
             run_mode = CEMU_LINUX_DIFF;
         }
+        else if (strcmp(argv[i],"-uboot") == 0) {
+            run_mode = UBOOT;
+        }
     }
     Verilated::traceEverOn(trace_on | cond_trace_on);
     // setup soc
@@ -1115,6 +1202,9 @@ int main(int argc, char** argv, char** env) {
             break;
         case CEMU_LINUX_DIFF:
             cemu_linux_diff(top, mmio_ref);
+            break;
+        case UBOOT:
+            uboot_run(top, mmio_ref);
             break;
         default:
             printf("Unknown running mode.\n");
