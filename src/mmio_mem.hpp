@@ -7,6 +7,8 @@
 #include <fstream>
 #include <iostream>
 
+extern bool running;
+
 class mmio_mem : public mmio_dev  {
     public:
         mmio_mem(size_t size_bytes) {
@@ -49,12 +51,24 @@ class mmio_mem : public mmio_dev  {
         bool do_write(uint64_t start_addr, uint64_t size, const uint8_t* buffer) {
             if (start_addr + size <= mem_size) {
                 memcpy(&mem[start_addr],buffer,size);
+                if (diff_mem_write) {
+                    for (int i=0;i<size;i++) if (mem[start_addr+i] != diff_mem[start_addr+i]) {
+                        running = false;
+                        printf("Error writeback cache at addr %x\n",start_addr+i);
+                    }
+                }
                 return true;
             }
             else if (allow_warp) {
                 start_addr %= mem_size;
                 if (start_addr + size <= mem_size) {
                     memcpy(&mem[start_addr],buffer,size);
+                    if (diff_mem_write) {
+                        for (int i=0;i<size;i++) if (mem[start_addr+i] != diff_mem[start_addr+i]) {
+                            running = false;
+                            printf("Error writeback cache at addr %x\n",start_addr+i);
+                        }
+                    }
                     return true;
                 }
                 else return false;
@@ -78,8 +92,17 @@ class mmio_mem : public mmio_dev  {
         void set_allow_warp(bool value) {
             allow_warp = true;
         }
+        unsigned char *get_mem_ptr() {
+            return mem;
+        }
+        void set_diff_mem(unsigned char *diff_mem_addr) {
+            diff_mem = diff_mem_addr;
+            diff_mem_write = true;
+        }
     private:
+        bool diff_mem_write = false;
         unsigned char *mem;
+        unsigned char *diff_mem;
         size_t mem_size;
         bool allow_warp = false;
 };

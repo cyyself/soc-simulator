@@ -665,7 +665,7 @@ void ucore_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
 void uboot_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     axi4     <32,32,4> mmio_sigs;
     axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
-    axi4_xbar<32,32,4> mmio;
+    axi4_xbar<32,32,4> mmio(23);
 
     // uart8250 at 0x1fe40000 (APB)
     uart8250 uart;
@@ -673,7 +673,7 @@ void uboot_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     assert(mmio.add_dev(0x1fe40000,0x10000,&uart));
 
     // spi flash at 0x1fc00000
-    mmio_mem spi_flash(2048*1024, "../uboot-megasoc/u-boot.bin");
+    mmio_mem spi_flash(2048*1024, "../u-boot/u-boot.bin");
     assert(mmio.add_dev(0x1fc00000,2048*1024,&spi_flash));
 
     // dram at 0x0
@@ -855,6 +855,7 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     assert(mmio.add_dev(0x1fe40000,0x10000,&uart));
 
     mmio_mem dram(0x8000000);
+    dram.set_diff_mem(cemu_dram.get_mem_ptr());
     dram.load_binary(0x100000, "../linux/vmlinux.bin");
     assert(mmio.add_dev(0x0,0x8000000,&dram));
 
@@ -939,6 +940,7 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             trace_on = true;
         }
     }
+    printf("stop at %ld ns.\n",ticks);
     top->final();
     if (trace_on) vcd.close();
 }
@@ -1061,6 +1063,9 @@ void cemu_ucore_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
         }
         // trace with cemu }
         ticks ++;
+        if (trace_start && ticks == trace_start_time) {
+            trace_on = true;
+        }
     }
     top->final();
     if (trace_on) vcd.close();
