@@ -87,6 +87,7 @@ void connect_wire(axi4_ptr <31,64,4> &mmio_ptr, axi4_ptr <32,64,4> &mem_ptr, VEx
 }
 
 bool trace_on = false;
+bool running = true;
 
 void uart_input(uartlite &uart) {
     termios tmp;
@@ -128,7 +129,7 @@ int main(int argc, char** argv, char** env) {
     unsigned long ticks = 0;
     long max_trace_ticks = 1000;
     unsigned long uart_tx_bytes = 0;
-    while (!Verilated::gotFinish() && max_trace_ticks > 0) {
+    while (!Verilated::gotFinish() && max_trace_ticks > 0 && running) {
         top->eval();
         ticks ++;
         if (ticks == 9) top->reset = 0;
