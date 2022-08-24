@@ -113,7 +113,7 @@ void system_test(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
 
     // init and run
     top->aresetn = 0;
-    unsigned long ticks = 0;
+    uint64_t ticks = 0;
     while (!Verilated::gotFinish() && sim_time > 0 && running) {
         top->eval();
         ticks ++;
@@ -178,10 +178,10 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
 
     // init and run
     top->aresetn = 0;
-    unsigned long ticks = 0;
-    unsigned long rst_ticks = 1000;
-    unsigned long last_commit = 0;
-    unsigned long commit_timeout = 5000;
+    uint64_t ticks = 0;
+    uint64_t rst_ticks = 1000;
+    uint64_t last_commit = 0;
+    uint64_t commit_timeout = 5000;
     int test_point = 0;
     while (!Verilated::gotFinish() && sim_time > 0 && running) {
         if (rst_ticks  > 0) {
@@ -238,7 +238,7 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
     if (trace_on) {
         top->trace(&vcd,0);
     }
-    unsigned long ticks = 0;
+    uint64_t ticks = 0;
     uint32_t last_wb_pc[2] = {0,0};
     uint32_t cur_wb_pc[2] = {0,0};
     // init and run
@@ -249,12 +249,12 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
         std::stringstream ss;
         ss << "trace-perf-" << test << ".vcd";
         if (trace_on) vcd.open(ss.str().c_str());
-        unsigned long rst_ticks = 1000;
+        uint64_t rst_ticks = 1000;
         // dual-issue-statistic {
-        unsigned long total_clk = 0;
-        unsigned long stall_clk = 0;
-        unsigned long dual_commit = 0;
-        unsigned long has_commit = 0;
+        uint64_t total_clk = 0;
+        uint64_t stall_clk = 0;
+        uint64_t dual_commit = 0;
+        uint64_t has_commit = 0;
         // dual-issue-statistic }
         while (!Verilated::gotFinish() && sim_time > 0 && running) {
             if (rst_ticks  > 0) {
@@ -381,7 +381,7 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
     if (trace_on) {
         top->trace(&vcd,0);
     }
-    unsigned long ticks = 0;
+    uint64_t ticks = 0;
     // rtl soc-simulator }
 
     for (int test=test_start;test<=test_end;test++) {
@@ -392,9 +392,9 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
         std::stringstream ss;
         ss << "trace-perf-" << test << ".vcd";
         if (trace_on) vcd.open(ss.str().c_str());
-        unsigned long rst_ticks = 1000;
-        unsigned long last_commit = ticks;
-        unsigned long commit_timeout = 5000;
+        uint64_t rst_ticks = 1000;
+        uint64_t last_commit = ticks;
+        uint64_t commit_timeout = 5000;
         cemu_mips.reset();
         while (!Verilated::gotFinish() && sim_time > 0 && running) {
             if (rst_ticks  > 0) {
@@ -501,13 +501,13 @@ void cemu_sys_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     if (trace_on) {
         top->trace(&vcd,0);
     }
-    unsigned long ticks = 0;
+    uint64_t ticks = 0;
     // rtl soc-simulator }
 
     top->aresetn = 0;
-    unsigned long rst_ticks = 1000;
-    unsigned long last_commit = ticks;
-    unsigned long commit_timeout = 5000;
+    uint64_t rst_ticks = 1000;
+    uint64_t last_commit = ticks;
+    uint64_t commit_timeout = 5000;
     cemu_mips.reset();
 
     while (!Verilated::gotFinish() && sim_time > 0 && running) {
@@ -603,12 +603,12 @@ void ucore_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
         top->trace(&vcd,0);
         vcd.open("trace.vcd");
     }
-    unsigned long last_commit = 0;
-    unsigned long commit_timeout = 10000;
+    uint64_t last_commit = 0;
+    uint64_t commit_timeout = 10000;
 
     // init and run
     top->aresetn = 0;
-    unsigned long ticks = 0;
+    uint64_t ticks = 0;
     while (!Verilated::gotFinish() && sim_time > 0 && running) {
         top->eval();
         ticks ++;
@@ -686,12 +686,12 @@ void uboot_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
         top->trace(&vcd,0);
         vcd.open("trace.vcd");
     }
-    unsigned long last_commit = 0;
-    unsigned long commit_timeout = 10000;
+    uint64_t last_commit = 0;
+    uint64_t commit_timeout = 10000;
 
     // init and run
     top->aresetn = 0;
-    unsigned long ticks = 0;
+    uint64_t ticks = 0;
     while (!Verilated::gotFinish() && sim_time > 0 && running) {
         top->eval();
         ticks ++;
@@ -772,12 +772,12 @@ void linux_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
         top->trace(&vcd,0);
         vcd.open("trace.vcd");
     }
-    unsigned long last_commit = 0;
-    unsigned long commit_timeout = 10000;
+    uint64_t last_commit = 0;
+    uint64_t commit_timeout = 10000;
 
     // init and run
     top->aresetn = 0;
-    unsigned long ticks = 0;
+    uint64_t ticks = 0;
     while (!Verilated::gotFinish() && sim_time > 0 && running) {
         top->eval();
         ticks ++;
@@ -865,7 +865,7 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
         top->trace(&vcd,0);
         vcd.open("trace.vcd");
     }
-    unsigned long ticks = 0;
+    uint64_t ticks = 0;
     // rtl soc-simulator }
 
     top->aresetn = 0;
@@ -975,7 +975,7 @@ void cemu_ucore_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
         top->trace(&vcd,0);
         vcd.open("trace.vcd");
     }
-    unsigned long ticks = 0;
+    uint64_t ticks = 0;
     // rtl soc-simulator }
 
     top->aresetn = 0;

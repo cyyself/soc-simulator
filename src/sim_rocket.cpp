@@ -126,9 +126,9 @@ int main(int argc, char** argv, char** env) {
     axi4_mem <32,64,4> mem(4096l*1024*1024);
     mem.load_binary("../opensbi/build/platform/generic/firmware/fw_payload.bin",0x80000000);
     top->reset = 1;
-    unsigned long ticks = 0;
+    uint64_t ticks = 0;
     long max_trace_ticks = 1000;
-    unsigned long uart_tx_bytes = 0;
+    uint64_t uart_tx_bytes = 0;
     while (!Verilated::gotFinish() && max_trace_ticks > 0 && running) {
         top->eval();
         ticks ++;

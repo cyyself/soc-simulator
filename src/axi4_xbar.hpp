@@ -16,20 +16,20 @@ public:
     axi4_xbar(int delay = 0):axi4_slave<A_WIDTH,D_WIDTH,ID_WIDTH>(delay) {
 
     }
-    bool add_dev(unsigned long start_addr, unsigned long length, mmio_dev *dev) {
-        std::pair<unsigned long, unsigned long> addr_range = std::make_pair(start_addr,start_addr+length);
+    bool add_dev(uint64_t start_addr, uint64_t length, mmio_dev *dev) {
+        std::pair<uint64_t, uint64_t> addr_range = std::make_pair(start_addr,start_addr+length);
         if (start_addr % length) return false;
         // check range
         auto it = devices.upper_bound(addr_range);
         if (it != devices.end()) {
-            unsigned long l_max = std::max(it->first.first,addr_range.first);
-            unsigned long r_min = std::min(it->first.second,addr_range.second);
+            uint64_t l_max = std::max(it->first.first,addr_range.first);
+            uint64_t r_min = std::min(it->first.second,addr_range.second);
             if (l_max < r_min) return false; // overleap
         }
         if (it != devices.begin()) {
             it = std::prev(it);
-            unsigned long l_max = std::max(it->first.first,addr_range.first);
-            unsigned long r_min = std::min(it->first.second,addr_range.second);
+            uint64_t l_max = std::max(it->first.first,addr_range.first);
+            uint64_t r_min = std::min(it->first.second,addr_range.second);
             if (l_max < r_min) return false; // overleap
         }
         // overleap check pass
@@ -64,7 +64,7 @@ protected:
         else return RESP_DECERR;
         }
 private:
-    std::map < std::pair<unsigned long,unsigned long>, mmio_dev* > devices;
+    std::map < std::pair<uint64_t,uint64_t>, mmio_dev* > devices;
 };
 
 #endif
