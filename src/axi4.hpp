@@ -4,6 +4,8 @@
 #include <verilated.h>
 #include <condition_variable>
 #include <cstdint>
+#include <set>
+#include <cstring>
 
 #define AUTO_SIG(name, msb, lsb) \
     typename std::conditional <(msb-lsb+1) <=  8, CData, \
