@@ -62,7 +62,7 @@ protected:
             return it->second->do_write(start_addr % dev_size, size, buffer) ? RESP_OKEY : RESP_SLVERR;
         }
         else return RESP_DECERR;
-        }
+    }
 private:
     std::map < std::pair<uint64_t,uint64_t>, mmio_dev* > devices;
 };

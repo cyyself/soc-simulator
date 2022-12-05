@@ -132,7 +132,6 @@ public:
     }
     bool do_write(uint64_t start_addr, uint64_t size, const unsigned char* buffer) {
         confreg_write ++;
-        assert(size == 4 || (size == 1 && start_addr == VIRTUAL_UART_ADDR));
         switch (start_addr) {
             case CR0_ADDR:
                 cr[0] = *(unsigned int*)buffer;
@@ -215,7 +214,6 @@ public:
         uint32_t ref_pc;
         uint32_t ref_wnum;
         uint32_t ref_wdata;
-        // TODO: 可以全局开一个上一个地址保存，error时一起输出？
         if (trace_on() && wen && wnum) {
             while (trace_file >> std::hex >> trace_cmp_flag >> ref_pc >> ref_wnum >> ref_wdata && (!trace_cmp_flag && !force_trace)) {
             }
@@ -227,12 +225,7 @@ public:
                     printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", pc, wnum, wdata);
                 }
                 return false;
-            }else{
-                // if (output) {
-                //     printf("OK!\n");
-                //     printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", ref_pc, ref_wnum, ref_wdata);
-                //     printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", pc, wnum, wdata);
-                // }
+            }else {
                 last_pc = pc;
                 last_wnum = wnum;
                 last_wdata = wdata;
