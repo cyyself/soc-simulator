@@ -173,7 +173,7 @@ class axi4_slave {
         axi_resp        w_resp;
         uint8_t         w_buffer[D_WIDTH/8];
         bool write_check() {
-            if (w_burst_type == BURST_RESERVED || w_burst_type == BURST_FIXED) return false;
+            if (w_burst_type == BURST_RESERVED) return false;
             if (w_burst_type == BURST_WRAP && (w_current_addr % w_each_len)) return false;
             if (w_burst_type == BURST_WRAP) {
                 if (w_nr_trans != 2 || w_nr_trans != 4 || w_nr_trans != 8 || w_nr_trans != 16) return false;
@@ -224,8 +224,10 @@ class axi4_slave {
                 }
                 if (w_early_err) return;
                 uint64_t addr_base = w_current_addr;
-                w_current_addr += w_each_len - (addr_base % w_each_len);
-                if (w_current_addr == (w_start_addr + w_each_len * w_nr_trans)) w_cur_trans =  w_start_addr; // warp support
+                if (w_burst_type != BURST_FIXED) {
+                    w_current_addr += w_each_len - (addr_base % w_each_len);
+                    if (w_current_addr == (w_start_addr + w_each_len * w_nr_trans)) w_cur_trans =  w_start_addr; // warp support
+                }
                 uint64_t in_data_pos = addr_base % D_bytes;
                 addr_base -= addr_base % D_bytes;
                 uint64_t rem_data_pos = w_each_len - (in_data_pos % w_each_len); // unaligned support
