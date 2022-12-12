@@ -41,14 +41,14 @@ void func_test(Vmycpu_top *top, nscscc_sram_ref &mmio_ref) {
     mmio.set_address_mask(0x1fffffff); // for some CPU have no MMU.
 
     // func mem at 0x1fc00000 and 0x0
-    mmio_mem func_mem(262144*4, "../nscscc-group/func_test_v0.01/soft/func/obj/main.bin");
+    mmio_mem func_mem(262144*4, "../../vivado/func_test_v0.01/soft/func/obj/main.bin");
     func_mem.set_allow_warp(true);
     assert(mmio.add_dev(0x1fc00000,0x100000,&func_mem));
     assert(mmio.add_dev(0x00000000,0x10000000,&func_mem));
 
     // confreg at 0x1faf0000
     nscscc_confreg confreg(true);
-    confreg.set_trace_file("../nscscc-group/func_test_v0.01/cpu132_gettrace/golden_trace.txt");
+    confreg.set_trace_file("../../vivado/func_test_v0.01/cpu132_gettrace/golden_trace.txt");
     assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
 
     // connect Vcd for trace
