@@ -36,9 +36,6 @@ public:
     }
     // size should be 1, 2, 4
     mips32_exccode va_read(uint32_t addr, uint32_t size, uint8_t *buffer, mips32_ksu mode, uint8_t asid, bool &tlb_invalid) {
-        if (addr&0x1ffffffcu == 0x1fc13494u) {
-            printf("[CEMU Read] %x\n",addr);
-        }
         tlb_invalid = false;
         if ((mode == USER_MODE && addr >= 0x80000000u) || addr % size != 0) return EXC_ADEL;
         else {
@@ -57,9 +54,6 @@ public:
         }
     }
     mips32_exccode va_write(uint32_t addr, uint32_t size, const uint8_t *buffer, mips32_ksu mode, uint8_t asid, bool &tlb_invalid) {
-        if (addr&0x1ffffffcu == 0x1fc13494u) {
-            printf("[CEMU Write] %x\n",addr);
-        }
         tlb_invalid = false;
         if ((mode == USER_MODE && addr >= 0x80000000u) || addr % size != 0) return EXC_ADES;
         else {
