@@ -57,12 +57,13 @@ void connect_wire(axi4_ptr <32,32,4> &mmio_ptr, Vmycpu_top *top) {
     mmio_ptr.rvalid     = &(top->rvalid);
 }
 
-bool running = true;
-bool trace_on = false;
-bool confreg_uart = false;
-long sim_time = 1e3;
-bool diff_uart = false;
-bool axi_fast = false;
+bool running = true;    // 运行
+bool trace_on = false;  // 输出波形图
+bool confreg_uart = false;// 开启confreg串口输出
+long sim_time = 1e3;    // 开启trace时最大仿真时间
+bool diff_uart = false; // 差分测试UART输出，检测MMIO访问是否正确
+bool axi_fast = false;  // 关闭性能测试时AXI延迟，用于加速Debug，不可用于跑分
+bool perf_once = false; // 性能测试只运行一次
 
 unsigned int *pc;
 
@@ -158,7 +159,7 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
     assert(mmio.add_dev(0x1fc00000,0x100000,&perf_mem));
 
     // confreg at 0x1faf0000
-    nscscc_confreg confreg;
+    nscscc_confreg confreg(perf_once);
     assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
     
     // connect Vcd for trace
@@ -168,17 +169,18 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
     }
     // init and run
     uint64_t ticks = 0;
-    uint64_t last_commit = ticks;
-    uint64_t commit_timeout = 5000;
-    uint64_t rst_ticks = 1000;
-    for (int test=test_start;test<=test_end;test++) {
-        running = true;
+
+    for (int test=test_start;test<=test_end && running;test++) {
+        bool test_end = false;
         confreg.set_switch(test);
         top->aresetn = 0;
         std::stringstream ss;
         ss << "trace-perf-" << test << ".vcd";
         if (trace_on) vcd.open(ss.str().c_str());
-        while (!Verilated::gotFinish() && sim_time > 0 && running) {
+        uint64_t rst_ticks = 1000;
+        uint64_t last_commit = ticks;
+        uint64_t commit_timeout = 5000;
+        while (!Verilated::gotFinish() && sim_time > 0 && running && !test_end) {
             if (rst_ticks  > 0) {
                 top->aresetn = 0;
                 rst_ticks --;
@@ -192,9 +194,10 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
                 confreg.tick();
                 mmio.beat(mmio_sigs_ref);
                 mmio_sigs.update_output(mmio_ref);
+                top->eval();
                 while (confreg_uart && confreg.has_uart()) printf("%c",confreg.get_uart());
             }
-            if (top->debug_wb_pc == 0xbfc00100u) running = false;
+            if (top->aresetn && top->debug_wb_pc == 0xbfc00100u) test_end = true;
             if (trace_on) {
                 vcd.dump(ticks);
                 sim_time --;
@@ -225,7 +228,7 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
     assert(cemu_mmio.add_dev(0x40000000,0x40000000,&cemu_func_mem));
     assert(cemu_mmio.add_dev(0x80000000,0x80000000,&cemu_func_mem));
 
-    nscscc_confreg cemu_confreg(false);
+    nscscc_confreg cemu_confreg(perf_once);
     assert(cemu_mmio.add_dev(0x1faf0000,0x10000,&cemu_confreg));
 
     mips_core cemu_mips(cemu_mmio);
@@ -238,11 +241,10 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
 
     // perf mem at 0x1fc00000
     mmio_mem perf_mem(262144*4, "../../vivado/perf_test_v0.01/soft/perf_func/obj/allbench/inst_data.bin");
-    perf_mem.set_diff_mem(cemu_func_mem.get_mem_ptr());
     assert(mmio.add_dev(0x1fc00000,0x100000,&perf_mem));
 
     // confreg at 0x1faf0000
-    nscscc_confreg confreg(false);
+    nscscc_confreg confreg(perf_once);
     assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
     
     // connect Vcd for trace
@@ -254,7 +256,7 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
     // rtl soc-simulator }
 
     for (int test=test_start;test<=test_end && running;test++) {
-        running = true;
+        bool test_end = false;
         confreg.set_switch(test);
         cemu_confreg.set_switch(test);
         top->aresetn = 0;
@@ -265,7 +267,7 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
         uint64_t last_commit = ticks;
         uint64_t commit_timeout = 5000;
         cemu_mips.reset();
-        while (!Verilated::gotFinish() && sim_time > 0 && running) {
+        while (!Verilated::gotFinish() && sim_time > 0 && running && !test_end) {
             if (rst_ticks  > 0) {
                 top->aresetn = 0;
                 rst_ticks --;
@@ -282,7 +284,7 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
                 top->eval();
                 while (confreg_uart && confreg.has_uart()) printf("%c",confreg.get_uart());
             }
-            if (top->debug_wb_pc == 0xbfc00100u) running = false;
+            if (top->aresetn && top->debug_wb_pc == 0xbfc00100u) test_end = true;
             if (trace_on) {
                 vcd.dump(ticks);
                 sim_time --;
@@ -332,6 +334,7 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
     printf("total ticks = %lu\n", ticks);
 }
 
+
 int main(int argc, char** argv, char** env) {
     Verilated::commandArgs(argc, argv);
 
@@ -373,8 +376,11 @@ int main(int argc, char** argv, char** env) {
         else if (strcmp(argv[i],"-diffuart") == 0) {
             diff_uart = true;
         }
-        else if (strcmp(argv[i],"-axi_fast") == 0) {
+        else if (strcmp(argv[i],"-axifast") == 0) {
             axi_fast = true;
+        }
+        else if (strcmp(argv[i],"-perfonce") == 0) {
+            perf_once = true;
         }
     }
 
