@@ -334,6 +334,89 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
     printf("total ticks = %lu\n", ticks);
 }
 
+void ucore_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
+    // loader {
+    const uint32_t text_start = 0x80000000;
+    uint32_t loader_instr[4] = {
+        (0x3c1f0000u) | (text_start >> 16),     // lui  ra,%HI(text_start)
+        (0x37ff0000u) | (text_start & 0xffff),  // ori  ra,ra,%LO(text_start)
+         0x03e00008u,   // jr   ra
+         0x00000000u    // nop
+    };
+    // loader }
+
+    // rtl soc-simulator {
+    axi4     <32,32,4> mmio_sigs;
+    axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
+    axi4_xbar<32,32,4> mmio(axi_fast ? 0 : 23);
+
+    // sys_mem at 0x0
+    mmio_mem sys_mem(128*1024*1024, "../ucore-thumips/obj/ucore-kernel-initrd.bin");
+    assert(mmio.add_dev(0x0,128*1024*1024,&sys_mem));
+
+    // bootloader at 0x1fc00000
+    mmio_mem bl_mem(4096);
+    bl_mem.do_write(0,sizeof(loader_instr),(uint8_t*)&loader_instr);
+    assert(mmio.add_dev(0x1fc00000,4096,&bl_mem));
+
+    // uart8250 at 0x1fe40000 (APB)
+    uart8250 uart;
+    std::thread *uart_input_thread = new std::thread(uart_input,std::ref(uart));
+    assert(mmio.add_dev(0x1fe40000,0x10000,&uart));
+    
+    // connect Vcd for trace
+    VerilatedVcdC vcd;
+    if (trace_on) {
+        top->trace(&vcd,0);
+    }
+    uint64_t ticks = 0;
+    // rtl soc-simulator }
+
+    unsigned long last_commit = 0;
+    unsigned long commit_timeout = 10000;
+
+    // init and run
+    top->aresetn = 0;
+    while (!Verilated::gotFinish() && sim_time > 0 && running) {
+        top->eval();
+        ticks ++;
+        if (trace_on) {
+            vcd.dump(ticks);
+            sim_time --;
+        }
+        if (ticks == 9) top->aresetn = 1;
+        top->aclk = 1;
+        // posedge
+        mmio_sigs.update_input(mmio_ref);
+        top->eval();
+        ticks ++;
+        if (top->aresetn) {
+            mmio.beat(mmio_sigs_ref);
+            while (uart.exist_tx()) {
+                char c = uart.getc();
+                printf("%c",c);
+                fflush(stdout);
+            }
+        }
+        mmio_sigs.update_output(mmio_ref);
+        if (top->debug_wb_rf_wen) {
+            last_commit = ticks;
+        }
+        if (trace_on) {
+            vcd.dump(ticks);
+            sim_time --;
+        }
+        top->ext_int = uart.irq() << 1;
+        top->aclk = 0;
+        if (ticks - last_commit > commit_timeout) {
+            printf("ERROR: There are %lu cycles since last commit at %lu ps.\n", commit_timeout, ticks);
+            running = false;
+        }
+    }
+    if (trace_on) vcd.close();
+    top->final();
+    pthread_kill(uart_input_thread->native_handle(),SIGKILL);
+}
 
 int main(int argc, char** argv, char** env) {
     Verilated::commandArgs(argc, argv);
@@ -342,7 +425,7 @@ int main(int argc, char** argv, char** env) {
         running = false;
     });
 
-    enum {NOP, FUNC, PERF, CEMU_PERF_DIFF} run_mode = NOP;
+    enum {NOP, FUNC, PERF, CEMU_PERF_DIFF, UCORE } run_mode = NOP;
 
     int perf_start = 1;
     int perf_end = 10;
@@ -359,6 +442,9 @@ int main(int argc, char** argv, char** env) {
         }
         else if (strcmp(argv[i],"-perf") == 0) {
             run_mode = PERF;
+        }
+        else if (strcmp(argv[i],"-ucore") == 0) {
+            run_mode = UCORE;
         }
         else if (strcmp(argv[i],"-uart") == 0) {
             confreg_uart = true;
@@ -413,6 +499,9 @@ int main(int argc, char** argv, char** env) {
                 printf("diff uart is on\n");
             }
             cemu_perf_diff(top, mmio_ref, perf_start, perf_end);
+            break;
+        case UCORE:
+            ucore_run(top, mmio_ref);
             break;
         default:
             printf("Unknown running mode. Please read readme.md!\n");
