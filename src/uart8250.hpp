@@ -24,6 +24,7 @@ class uart8250 : public mmio_dev {
 public:
     uart8250() {
         thr_empty = false;
+        access_uart = false;
         DLL = 0;
         DLM = 0;
         IER = 0;
@@ -34,6 +35,7 @@ public:
     bool do_read(uint64_t start_addr, uint64_t size, unsigned char* buffer) {
         std::unique_lock<std::mutex> lock(rx_lock);
         assert(size == 1);
+        access_uart = true;
         switch (start_addr) {
             case UART8250_TX_RX_DLL: {
                 if (DLAB()) {
@@ -175,6 +177,12 @@ public:
         std::unique_lock<std::mutex> lock(tx_lock);
         return !tx.empty();
     }
+    void clear_access_flag() {
+        access_uart = false;
+    }
+    bool has_access_flag() {
+        return access_uart;
+    }
 private:
     bool DLAB() {
         return (LCR >> 7) != 0;
@@ -200,6 +208,7 @@ private:
     std::mutex tx_lock;
 
     bool thr_empty;
+    bool access_uart;
     // regs
     unsigned char DLL;
     unsigned char DLM;

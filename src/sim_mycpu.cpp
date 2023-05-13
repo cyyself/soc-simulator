@@ -59,9 +59,9 @@ void connect_wire(axi4_ptr <32,32,4> &mmio_ptr, Vmycpu_top *top) {
     mmio_ptr.rvalid     = &(top->rvalid);
 }
 
+// run time config {
 bool running = true;
 bool trace_on = false;
-bool cond_trace_on = false;
 bool trace_pc = false;
 bool confreg_uart = false;
 bool perf_stat = false;
@@ -69,6 +69,7 @@ long sim_time = 1e3;
 bool diff_uart = false;
 bool trace_start = false;
 long trace_start_time = 0;
+// run time config }
 
 unsigned int *pc;
 
@@ -79,8 +80,8 @@ void uart_input(uart8250 &uart) {
     tcsetattr(STDIN_FILENO,TCSANOW,&tmp);
     while (running) {
         char c = getchar();
-        if (c == 'p') printf("pc = %x\n",*pc);
-        else if (c == 't') trace_on = true;
+        if (c == 9) printf("pc = %x\n",*pc); // ctrl+i
+        else if (c == 20) trace_on = true; // ctrl+t
         else if (c == 10) c = 13; // convert lf to cr
         uart.putc(c);
     }
@@ -588,6 +589,20 @@ void ucore_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
     axi4_xbar<32,32,4> mmio;
 
+    // loader {
+    const uint32_t text_start = 0x80000000;
+    uint32_t loader_instr[4] = {
+        (0x3c1f0000u) | (text_start >> 16),     // lui  ra,%HI(text_start)
+        (0x37ff0000u) | (text_start & 0xffff),  // ori  ra,ra,%LO(text_start)
+         0x03e00008u,   // jr   ra
+         0x00000000u    // nop
+    };
+    // bootloader at 0x1fc00000
+    mmio_mem bl_mem(4096);
+    bl_mem.do_write(0,sizeof(loader_instr),(uint8_t*)&loader_instr);
+    assert(mmio.add_dev(0x1fc00000,4096,&bl_mem));
+    // loader }
+
     // uart8250 at 0x1fe40000 (APB)
     uart8250 uart;
     std::thread *uart_input_thread = new std::thread(uart_input,std::ref(uart));
@@ -599,7 +614,7 @@ void ucore_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
 
     // connect Vcd for trace
     VerilatedVcdC vcd;
-    if (trace_on | cond_trace_on) {
+    if (true) {
         top->trace(&vcd,0);
         vcd.open("trace.vcd");
     }
@@ -682,7 +697,7 @@ void uboot_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
 
     // connect Vcd for trace
     VerilatedVcdC vcd;
-    if (trace_on | cond_trace_on) {
+    if (true) {
         top->trace(&vcd,0);
         vcd.open("trace.vcd");
     }
@@ -737,24 +752,30 @@ void uboot_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             printf("ERROR: There are %lu cycles since last commit at %lu ps.\n", commit_timeout, ticks);
             running = false;
         }
-        // if (top->debug_pc_next == 0x80006380u) trace_on = true;
     }
     if (trace_on) vcd.close();
     top->final();
     pthread_kill(uart_input_thread->native_handle(),SIGKILL);
 }
 
-
-void report_tlb_exception() {
-    static int cnt;
-    cnt ++;
-    // if (cnt == 2) trace_on = true;
-}
-
 void linux_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     axi4     <32,32,4> mmio_sigs;
     axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
     axi4_xbar<32,32,4> mmio;
+
+    // loader {
+    const uint32_t text_start = 0x80100000;
+    uint32_t loader_instr[4] = {
+        (0x3c1f0000u) | (text_start >> 16),     // lui  ra,%HI(text_start)
+        (0x37ff0000u) | (text_start & 0xffff),  // ori  ra,ra,%LO(text_start)
+         0x03e00008u,   // jr   ra
+         0x00000000u    // nop
+    };
+    // bootloader at 0x1fc00000
+    mmio_mem bl_mem(4096);
+    bl_mem.do_write(0,sizeof(loader_instr),(uint8_t*)&loader_instr);
+    assert(mmio.add_dev(0x1fc00000,4096,&bl_mem));
+    // loader }
 
     // uart8250 at 0x1fe40000 (APB)
     uart8250 uart;
@@ -768,7 +789,7 @@ void linux_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
 
     // connect Vcd for trace
     VerilatedVcdC vcd;
-    if (trace_on | cond_trace_on) {
+    if (true) {
         top->trace(&vcd,0);
         vcd.open("trace.vcd");
     }
@@ -798,15 +819,6 @@ void linux_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
                 char c = uart.getc();
                 printf("%c",c);
                 fflush(stdout);
-                /*
-                uart_buffer[(uart_buffer_ptr+1)%UART_BUFFER_SIZE] = c;
-                uart_buffer_ptr = (uart_buffer_ptr + 1) % UART_BUFFER_SIZE;
-                fflush(stdout);
-                if (uart_buffer_compare("[    0.143197] futex hash table entries: 256 (order: -1, 3072 bytes, linear)")) {
-                    printf("[SoC-Simulator] trace on!\n");
-                    trace_on = true;
-                }
-                */
             }
         }
         mmio_sigs.update_output(mmio_ref);
@@ -824,8 +836,6 @@ void linux_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             printf("ERROR: There are %lu cycles since last commit at %lu ps.\n", commit_timeout, ticks);
             running = false;
         }
-        // if (ticks == 180136000) trace_on = true;
-        //if (top->debug_pc_next == 0x801a171cu) trace_on = true;
     }
     if (trace_on) vcd.close();
     top->final();
@@ -851,7 +861,23 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
     axi4_xbar<32,32,4> mmio(0);
 
+    // loader {
+    const uint32_t text_start = 0x80100000;
+    uint32_t loader_instr[4] = {
+        (0x3c1f0000u) | (text_start >> 16),     // lui  ra,%HI(text_start)
+        (0x37ff0000u) | (text_start & 0xffff),  // ori  ra,ra,%LO(text_start)
+         0x03e00008u,   // jr   ra
+         0x00000000u    // nop
+    };
+    // bootloader at 0x1fc00000
+    mmio_mem bl_mem(4096);
+    bl_mem.do_write(0,sizeof(loader_instr),(uint8_t*)&loader_instr);
+    assert(mmio.add_dev(0x1fc00000,4096,&bl_mem));
+    assert(cemu_mmio.add_dev(0x1fc00000,4096,&bl_mem));
+    // loader }
+
     uart8250 uart;
+    std::thread *uart_input_thread = new std::thread(uart_input,std::ref(uart));
     assert(mmio.add_dev(0x1fe40000,0x10000,&uart));
 
     mmio_mem dram(0x8000000);
@@ -861,7 +887,7 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
 
     // connect Vcd for trace
     VerilatedVcdC vcd;
-    if (trace_on | cond_trace_on) {
+    if (true) {
         top->trace(&vcd,0);
         vcd.open("trace.vcd");
     }
@@ -873,7 +899,6 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     long last_commit = 0;
     long commit_timeout = 100000;
     cemu_mips.reset();
-    cemu_mips.jump(0x80100000);
     cemu_mips.set_difftest_mode(true);
 
     while (!Verilated::gotFinish() && sim_time > 0 && running) {
@@ -883,6 +908,7 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
         }
         else top->aresetn = 1;
         top->aclk = !top->aclk;
+        top->ext_int = uart.irq() << 1;
         if (top->aclk && top->aresetn) mmio_sigs.update_input(mmio_ref);
         top->eval();
         if (top->aclk && top->aresetn) {
@@ -904,8 +930,10 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             last_commit = ticks;
             if (top->debug_wb_pc) {
                 cemu_mips.import_diff_test_info(top->debug_cp0_count, top->debug_cp0_random, top->debug_cp0_cause, top->debug_int);
+                cemu_uart.clear_access_flag();
                 cemu_mips.step();
-                if (cemu_mips.debug_wb_pc == 0x804523f0u) {
+                if (cemu_uart.has_access_flag()) {
+                    cemu_uart.clear_access_flag();
                     cemu_mips.set_GPR(cemu_mips.debug_wb_wnum, top->debug_wb_rf_wdata);
                 }
                 if (
@@ -915,7 +943,6 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
                     (cemu_mips.debug_wb_wdata != top->debug_wb_rf_wdata) ) )
                 ) {
                     printf("Error at %ld ps!\n",ticks);
-                    printf("last     : PC = 0x%08x\n", last_pc);
                     printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_mips.debug_wb_pc, cemu_mips.debug_wb_wnum, cemu_mips.debug_wb_wdata);
                     printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
                     running = false;
@@ -927,7 +954,6 @@ void cemu_linux_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
                         cemu_mips.pc_trace.pop();
                     }
                 }
-                else last_pc = top->debug_wb_pc;
             }
         }
         if (ticks - last_commit >= commit_timeout) {
@@ -964,14 +990,30 @@ void cemu_ucore_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     axi4_xbar<32,32,4> mmio(23);
 
     uart8250 uart;
+    std::thread *uart_input_thread = new std::thread(uart_input,std::ref(uart));
     assert(mmio.add_dev(0x1fe40000,0x10000,&uart));
 
     mmio_mem dram(0x8000000, "../ucore-thumips/obj/ucore-kernel-initrd.bin");
     assert(mmio.add_dev(0x0,0x8000000,&dram));
 
+    // loader {
+    const uint32_t text_start = 0x80000000;
+    uint32_t loader_instr[4] = {
+        (0x3c1f0000u) | (text_start >> 16),     // lui  ra,%HI(text_start)
+        (0x37ff0000u) | (text_start & 0xffff),  // ori  ra,ra,%LO(text_start)
+         0x03e00008u,   // jr   ra
+         0x00000000u    // nop
+    };
+    // bootloader at 0x1fc00000
+    mmio_mem bl_mem(4096);
+    bl_mem.do_write(0,sizeof(loader_instr),(uint8_t*)&loader_instr);
+    assert(mmio.add_dev(0x1fc00000,4096,&bl_mem));
+    assert(cemu_mmio.add_dev(0x1fc00000,4096,&bl_mem));
+    // loader }
+
     // connect Vcd for trace
     VerilatedVcdC vcd;
-    if (trace_on | cond_trace_on) {
+    if (true) {
         top->trace(&vcd,0);
         vcd.open("trace.vcd");
     }
@@ -983,7 +1025,6 @@ void cemu_ucore_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     long last_commit = 0;
     long commit_timeout = 100000;
     cemu_mips.reset();
-    cemu_mips.jump(0x80000000);
     cemu_mips.set_difftest_mode(true);
 
     while (!Verilated::gotFinish() && sim_time > 0 && running) {
@@ -993,6 +1034,7 @@ void cemu_ucore_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
         }
         else top->aresetn = 1;
         top->aclk = !top->aclk;
+        top->ext_int = uart.irq() << 1;
         if (top->aclk && top->aresetn) mmio_sigs.update_input(mmio_ref);
         top->eval();
         if (top->aclk && top->aresetn) {
@@ -1014,7 +1056,12 @@ void cemu_ucore_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             last_commit = ticks;
             if (top->debug_wb_pc) {
                 cemu_mips.import_diff_test_info(top->debug_cp0_count, top->debug_cp0_random, top->debug_cp0_cause, top->debug_int);
+                cemu_uart.clear_access_flag();
                 cemu_mips.step();
+                if (cemu_uart.has_access_flag()) {
+                    cemu_uart.clear_access_flag();
+                    cemu_mips.set_GPR(cemu_mips.debug_wb_wnum, top->debug_wb_rf_wdata);
+                }
                 if (
                     cemu_mips.debug_wb_pc    != top->debug_wb_pc      || (
                     cemu_mips.debug_wb_wen  && (
@@ -1022,41 +1069,14 @@ void cemu_ucore_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
                     (cemu_mips.debug_wb_wdata != top->debug_wb_rf_wdata) ) )
                 ) {
                     printf("Error at %ld ps!\n",ticks);
-                    printf("last     : PC = 0x%08x\n", last_pc);
                     printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_mips.debug_wb_pc, cemu_mips.debug_wb_wnum, cemu_mips.debug_wb_wdata);
                     printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
                     running = false;
                     cemu_dram.save_binary("cemu_memory.dump");
                     printf("cemu memory dumped!");
                 }
-                else last_pc = top->debug_wb_pc;
             }
         }
-        /*
-        if (top->debug_wb_rf_wen && top->debug_wb_rf_wnum) {
-            do {
-                cemu_mips.step();
-            } while(!(cemu_mips.debug_wb_wen && cemu_mips.debug_wb_wnum));
-            if ( cemu_mips.debug_wb_pc    != top->debug_wb_pc      || 
-                    cemu_mips.debug_wb_wnum  != top->debug_wb_rf_wnum ||
-                (cemu_mips.debug_wb_wdata != top->debug_wb_rf_wdata && !cemu_mips.debug_wb_is_timer)
-            ) {
-                printf("Error!\n");
-                printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_mips.debug_wb_pc, cemu_mips.debug_wb_wnum, cemu_mips.debug_wb_wdata);
-                printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
-                running = false;
-            }
-            else {
-                if (cemu_mips.debug_wb_is_timer) {
-                    cemu_mips.set_GPR(cemu_mips.debug_wb_wnum, top->debug_wb_rf_wdata);
-                }
-                // printf("OK!\n");
-                // printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_mips.debug_wb_pc, cemu_mips.debug_wb_wnum, cemu_mips.debug_wb_wdata);
-                // printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
-            }
-            last_commit = ticks;
-        }
-        */
         if (ticks - last_commit >= commit_timeout) {
             printf("ERROR: There are %lu cycles since last commit\n", commit_timeout);
             running = false;
@@ -1070,7 +1090,6 @@ void cemu_ucore_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     top->final();
     if (trace_on) vcd.close();
 }
-
 
 int main(int argc, char** argv, char** env) {
     Verilated::commandArgs(argc, argv);
@@ -1091,14 +1110,7 @@ int main(int argc, char** argv, char** env) {
                 sscanf(argv[++i],"%lu",&sim_time);
             }
         }
-        else if (strcmp(argv[i],"-condtrace") == 0) {
-            cond_trace_on = true;
-            if (i+1 < argc) {
-                sscanf(argv[++i],"%lu",&sim_time);
-            }
-        }
         else if (strcmp(argv[i],"-starttrace") == 0) {
-            cond_trace_on = true;
             trace_start = true;
             if (i+1 < argc) {
                 sscanf(argv[++i],"%lu",&trace_start_time);
@@ -1157,7 +1169,7 @@ int main(int argc, char** argv, char** env) {
             run_mode = UBOOT;
         }
     }
-    Verilated::traceEverOn(trace_on | cond_trace_on);
+    Verilated::traceEverOn(true);
     // setup soc
     Vmycpu_top *top = new Vmycpu_top;
     pc = &(top->debug_wb_pc);
