@@ -129,6 +129,7 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
 
     // connect Vcd for trace
     top->trace(&vcd,0);
+    if (trace_on) open_trace();
 
     // reset rtl for 100 ticks
     top->aresetn = 0;
@@ -458,6 +459,7 @@ void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
 
     // connect Vcd for trace
     top->trace(&vcd,0);
+    if (trace_on) open_trace();
 
     // reset rtl for 100 ticks
     top->aresetn = 0;
