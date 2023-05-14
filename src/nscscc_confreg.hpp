@@ -39,6 +39,7 @@ public:
     unsigned int confreg_write = 0;
     nscscc_confreg(bool simulation = false) {
         simu_flag = simulation ? 0xffffffffu : 0;
+        reset();
     }
     void reset() {
         timer = 0;
