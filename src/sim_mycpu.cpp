@@ -286,7 +286,7 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
                 // deadlock detection {
                 if (top->debug_wb_rf_wen) last_commit = ticks;
                 if (ticks - last_commit >= commit_timeout) {
-                    printf("ERROR: There are %lu cycles since last commit\n", commit_timeout);
+                    printf("ERROR: There are %lu ticks since last commit\n", commit_timeout);
                     running = false;
                 }
                 // deadlock detection }
@@ -509,7 +509,7 @@ void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
             // deadlock detection {
             if (top->debug_wb_rf_wen) last_commit = ticks;
             if (ticks - last_commit >= commit_timeout) {
-                printf("ERROR: There are %lu cycles since last commit\n", commit_timeout);
+                printf("ERROR: There are %lu ticks since last commit\n", commit_timeout);
                 running = false;
             }
             // deadlock detection }
