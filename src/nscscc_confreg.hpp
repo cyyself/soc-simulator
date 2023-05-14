@@ -38,13 +38,15 @@ public:
     unsigned int confreg_read = 0;
     unsigned int confreg_write = 0;
     nscscc_confreg(bool simulation = false) {
+        simu_flag = simulation ? 0xffffffffu : 0;
+    }
+    void reset() {
         timer = 0;
         memset(cr,0,sizeof(cr));
         led = 0;
         led_rg0 = 0;
         led_rg1 = 0;
         num = 0;
-        simu_flag = simulation ? 0xffffffffu : 0;
         io_simu = 0;
         open_trace = 1;
         num_monitor = 1;
