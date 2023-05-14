@@ -24,7 +24,6 @@
 // CONFIG {
 bool both_edge_commit = true; // hack for superscalar CPU, say false if you CPU does not support it.
 #define HAS_DEBUG_EXT
-#define OPEN_BOTH_EDGE_STATIC
 // CONFIG }
 
 void connect_wire(axi4_ptr <32,32,4> &mmio_ptr, Vmycpu_top *top) {
