@@ -245,6 +245,8 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
             }
         }
         top->aresetn = 1;
+        // reset axi
+        rtl_mmio.reset();
         // reset cemu
         cemu_mips.reset();
 
