@@ -1,5 +1,5 @@
 #include "verilated.h"
-#include "verilated_vcd_c.h"
+#include "verilated_fst_c.h"
 #include "svdpi.h"
 // #include "Vmycpu_top__Dpi.h"
 #include "Vmycpu_top.h"
@@ -86,10 +86,10 @@ std::atomic_bool trace_on;
 // run time config }
 
 unsigned int *pc;
-VerilatedVcdC vcd;
+VerilatedFstC fst;
 
 void open_trace() {
-    vcd.open("trace.vcd");
+    fst.open("trace.fst");
     trace_on.store(true, std::memory_order_seq_cst);
 }
 
@@ -126,8 +126,8 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     confreg.set_trace_file("../nscscc-group/func_test_v0.01/cpu132_gettrace/golden_trace.txt");
     assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
 
-    // connect Vcd for trace
-    top->trace(&vcd,0);
+    // connect fst for trace
+    top->trace(&fst,0);
     if (trace_on) open_trace();
 
     // reset rtl for 100 ticks
@@ -161,7 +161,7 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
         }
         if (trace_on) { // print wave if trace_on
             top->eval(); // update rtl status changed by axi, this will only affect waveform
-            vcd.dump(ticks);
+            fst.dump(ticks);
             sim_time --;
         }
         // conditinal trace
@@ -190,7 +190,7 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
         }
         
     }
-    if (trace_on) vcd.close();
+    if (trace_on) fst.close();
     top->final();
 }
 
@@ -216,8 +216,8 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
     // setup diff memory
     if (diff_memory_write) rtl_perf_mem.set_diff_mem(cemu_perf_mem.get_mem_ptr());
 
-    // connect Vcd for trace
-    top->trace(&vcd,0);
+    // connect fst for trace
+    top->trace(&fst,0);
     if (trace_on) open_trace();
 
     // init cemu_mips
@@ -239,6 +239,10 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
         for (int i=0;i<100;i++) {
             top->aclk = !top->aclk;
             top->eval();
+            if (trace_on) { // print wave if trace_on
+                fst.dump(ticks++);
+                sim_time --;
+            }
         }
         top->aresetn = 1;
         // reset cemu
@@ -273,7 +277,7 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
             }
             if (trace_on) { // print wave if trace_on
                 top->eval(); // update rtl status changed by axi, this will only affect waveform
-                vcd.dump(ticks);
+                fst.dump(ticks);
                 sim_time --;
             }
             // conditinal trace
@@ -364,7 +368,7 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
         if (sim_time <= 0) running = false;
     }
     top->final();
-    if (trace_on) vcd.close();
+    if (trace_on) fst.close();
     printf("total ticks = %lu\n", ticks);
 }
 
@@ -455,8 +459,8 @@ void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
     // setup diff memory
     if (diff_memory_write) rtl_dram.set_diff_mem(cemu_dram.get_mem_ptr());
 
-    // connect Vcd for trace
-    top->trace(&vcd,0);
+    // connect fst for trace
+    top->trace(&fst,0);
     if (trace_on) open_trace();
 
     // reset rtl for 100 ticks
@@ -495,7 +499,7 @@ void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
         }
         if (trace_on) { // print wave if trace_on
             top->eval(); // update rtl status changed by axi, this will only affect waveform
-            vcd.dump(ticks);
+            fst.dump(ticks);
             sim_time --;
         }
         // conditinal trace
@@ -554,7 +558,7 @@ void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
         }
     }
     top->final();
-    if (trace_on) vcd.close();
+    if (trace_on) fst.close();
     pthread_kill(uart_input_thread->native_handle(),SIGKILL);
     for (auto x : devices) delete x;
 }
