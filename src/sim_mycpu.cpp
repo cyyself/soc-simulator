@@ -353,7 +353,6 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
                 if (top->debug_wb_pc == 0xbfc00100u) cur_running = false;
             }
         }
-        if (trace_on) vcd.close();
         if (rtl_confreg.get_num()) printf("%x\n", rtl_confreg.get_num());
         else printf("Unfinished performance test %d!\n", test);
         if (perf_stat) {
