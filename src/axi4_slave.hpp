@@ -57,7 +57,7 @@ class axi4_slave {
             if (r_burst_type == BURST_RESERVED) return false;
             if (r_burst_type == BURST_WRAP && (r_current_addr % r_each_len)) return false;
             if (r_burst_type == BURST_WRAP) {
-                if (r_nr_trans != 2 || r_nr_trans != 4 || r_nr_trans != 8 || r_nr_trans != 16) {
+                if (r_nr_trans != 2 && r_nr_trans != 4 && r_nr_trans != 8 && r_nr_trans != 16) {
                     return false;
                 }
             }
@@ -176,7 +176,7 @@ class axi4_slave {
             if (w_burst_type == BURST_RESERVED) return false;
             if (w_burst_type == BURST_WRAP && (w_current_addr % w_each_len)) return false;
             if (w_burst_type == BURST_WRAP) {
-                if (w_nr_trans != 2 || w_nr_trans != 4 || w_nr_trans != 8 || w_nr_trans != 16) return false;
+                if (w_nr_trans != 2 && w_nr_trans != 4 && w_nr_trans != 8 && w_nr_trans != 16) return false;
             }
             uint64_t rem_addr = 4096 - (w_start_addr % 4096);
             if (w_tot_len > rem_addr) return false;
