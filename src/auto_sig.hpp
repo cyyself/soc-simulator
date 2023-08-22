@@ -1,5 +1,8 @@
 #ifndef AUTO_SIG
 
+#include <verilated.h>
+#include <condition_variable>
+
 #define AUTO_SIG(name, msb, lsb) \
     typename std::conditional <(msb-lsb+1) <=  8, CData, \
     typename std::conditional <(msb-lsb+1) <= 16, SData, \

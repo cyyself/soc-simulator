@@ -1,8 +1,6 @@
 #ifndef AXI4_HPP
 #define AXI4_HPP
 
-#include <verilated.h>
-#include <condition_variable>
 #include <cstdint>
 #include <set>
 #include <cstring>
