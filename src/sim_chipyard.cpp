@@ -113,7 +113,15 @@ void uart_input(uartlite &uart) {
     }
 }
 
-void run_system(VChipTop *dut) {
+void run_system(VChipTop *dut, const char* load_path, uint64_t jump_addr = 0x80000000) {
+    // loader {
+    uint32_t loader_instr[3] = {
+        0x600010b7u,// lui	ra,0x60001
+        0x0000b083u,// ld	ra,0(ra) # 60001000
+        0x000080e7u // jalr	ra
+    };
+    // loader }
+
     axi4_ptr <31,64,4> mmio_ptr;
     axi4_ptr <32,64,4> mem_ptr;
 
@@ -130,15 +138,19 @@ void run_system(VChipTop *dut) {
     axi4_ref <31,64,4> mmio_sigs_ref(mmio_sigs);
     axi4_xbar<31,64,4> mmio;
 
+    mmio_mem           boot_ram(262144*4);
+    boot_ram.do_write(0,sizeof(loader_instr),(uint8_t*)&loader_instr);
+    boot_ram.do_write(0x1000,8,(uint8_t*)&jump_addr);
     uartlite           uart;
     std::thread        uart_input_thread(uart_input,std::ref(uart));
+    assert(mmio.add_dev(0x60000000,1024*1024,&boot_ram));
     assert(mmio.add_dev(0x60100000,1024*1024,&uart));
 
     axi4_ref <32,64,4> mem_ref(mem_ptr);
     axi4     <32,64,4> mem_sigs;
     axi4_ref <32,64,4> mem_sigs_ref(mem_sigs);
     axi4_mem <32,64,4> mem(4096l*1024*1024);
-    // mem.load_binary("../opensbi/build/platform/generic/firmware/fw_payload.bin",0x80000000);
+    if (load_path != NULL) mem.load_binary(load_path, 0x80000000);
     dut->reset_io = 1;
     uint64_t ticks = 0;
     uint64_t uart_tx_bytes = 0;
@@ -188,11 +200,24 @@ int main(int argc, char** argv, char** env) {
         running = false;
     });
 
+    char *load_path = NULL;
+    uint64_t start_addr = 0x80000000L;
+
     for (int i=1;i<argc;i++) {
-        if (strcmp(argv[i],"-trace") == 0) {
+        if (strcmp(argv[i], "-trace") == 0) {
             trace_on = true;
             if (i+1 < argc) {
-                sscanf(argv[++i],"%lu",&sim_time);
+                sscanf(argv[++i], "%lu", &sim_time);
+            }
+        }
+        else if (strcmp(argv[i], "-init") == 0) {
+            if (i+1 < argc) {
+                load_path = argv[++i];
+            }
+        }
+        else if (strcmp(argv[i], "-start") == 0) {
+            if (i+1 < argc) {
+                sscanf(argv[++i], "%lx", &start_addr);
             }
         }
     }
@@ -200,7 +225,7 @@ int main(int argc, char** argv, char** env) {
 
     VChipTop *dut = new VChipTop;
 
-    run_system(dut);
+    run_system(dut, load_path, start_addr);
 
     return 0;
 }
