@@ -26,8 +26,9 @@ public:
         r_index = -1;
     }
     void beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-        signal_to_transaction(pin);
+        input_transaction(pin);
         transaction_process();
+        output_transaction(pin);
     }
 protected:
     virtual axi_resp do_read (uint64_t start_addr, uint64_t size, uint8_t* buffer) = 0;
@@ -41,7 +42,7 @@ private:
     r_packet cur_r;
     w_packet cur_w;
     int r_index = -1;
-    void signal_to_transaction(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
+    void input_transaction(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
         // TODO: add memory timing model and support bit endian host ISA
         // input ar
         if (pin.arvalid && pin.arready) { // ar.fire
@@ -75,6 +76,12 @@ private:
                 cur_w.strb.clear();
             }
         }
+        // output control signal
+        pin.arready = 1;
+        pin.awready = 1;
+        pin.wready = 1;
+    }
+    void output_transaction(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
         // output r {
         if (r_index != -1) { // check pending transaction first
             if (pin.rready) {
@@ -103,6 +110,7 @@ private:
             pin.rlast = (r_index == cur_r.data.size());
             pin.rresp = cur_r.resp;
         }
+        pin.rvalid = (r_index != -1);
         // output r }
         // output b
         if (pin.bvalid && pin.bready) pin.bvalid = false;
@@ -113,11 +121,6 @@ private:
             pin.bresp = tmp.resp;
             pin.bvalid = true;
         }
-        // output control signal
-        pin.arready = 1;
-        pin.awready = 1;
-        pin.wready = 1;
-        pin.rvalid = (r_index != -1);
     }
     void transaction_process() {
         ar_process();
