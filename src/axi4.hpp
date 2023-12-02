@@ -292,4 +292,95 @@ enum axi_burst_type {
     BURST_RESERVED  = 3
 };
 
+struct ar_packet {
+    uint64_t id;
+    uint64_t addr;
+    uint8_t len;
+    uint8_t size;
+    axi_burst_type burst;
+    ar_packet() {
+        addr = 0;
+        len = 0;
+        size = 0;
+        burst = BURST_FIXED;
+        id = 0;
+    }
+};
+
+struct aw_packet {
+    uint64_t id;
+    uint64_t addr;
+    uint8_t len;
+    uint8_t size;
+    axi_burst_type burst;
+    aw_packet() {
+        addr = 0;
+        len = 0;
+        size = 0;
+        burst = BURST_FIXED;
+        id = 0;
+    }
+};
+
+/*
+    Note for narrow burst:
+
+    The design of the packet format does not have any information 
+    for narrow burst (i.e. AxSIZE < DataWidth) to decouple the data
+    and the address request.
+    
+    When a burst is narrow, the size of data is AxLEN * DataWidth / 8,
+    and the size of strb is AxLEN * DataWidth / 8 / 8. Every DataWidth / 8
+    is the data send in one cycle, and every DataWidth / 8 / 8 is the strb
+    send in one cycle. The receiver should carefully put the data in a
+    packet when doing narrow bursts.
+
+    We should also care for the buffer size of one transaction. Although 
+    a valid AXI transaction should not cross 4KB boundary. When doing narrow
+    bursts, as we expand the data size to the whole DataWidth for each cycle,
+    the buffer size will larger than 4KB when doing narrow bursts. Thus, we 
+    recommand the buffer size should be D_WIDTH * 256 to support up to 256
+    bursts.
+ */
+
+struct w_packet { // entire packet
+    // the size of data and strb should always aligned to the width of the data bus
+    std::vector <char> data;
+    std::vector <bool> strb;
+    w_packet() { }
+    w_packet(std::vector <char> _data, std::vector <bool> _strb) {
+        data = _data;
+        strb = _strb;
+    }
+};
+
+struct r_packet { // entire packet
+    axi_resp resp;
+    uint64_t id;
+    // the size of data and strb should always aligned to the width of the data bus
+    std::vector <char> data;
+    r_packet() {
+        resp = RESP_OKEY;
+        id = 0;
+    }
+    r_packet(axi_resp _resp, uint64_t _id, std::vector <char> _data) {
+        resp = _resp;
+        id = _id;
+        data = _data;
+    }
+};
+
+struct b_packet {
+    axi_resp resp;
+    uint64_t id;
+    b_packet() {
+        resp = RESP_OKEY;
+        id = 0;
+    }
+    b_packet(axi_resp _resp, uint64_t _id) {
+        resp = _resp;
+        id = _id;
+    }
+};
+
 #endif

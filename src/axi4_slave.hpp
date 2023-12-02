@@ -7,263 +7,268 @@
 #include <algorithm>
 #include <utility>
 #include <vector>
+#include <queue>
 
 template <unsigned int A_WIDTH = 64, unsigned int D_WIDTH = 64, unsigned int ID_WIDTH = 4>
 class axi4_slave {
-    static_assert(D_WIDTH <= 64, "D_WIDTH should be <= 64.");
-    static_assert(A_WIDTH <= 64, "A_WIDTH should be <= 64.");
-    public:
-        axi4_slave(int delay = 0):delay(delay) {
-
+public:
+    axi4_slave() {
+    }
+    axi4_slave(int delay) {
+        // TODO: delay
+    }
+    void reset() {
+        while (!ar.empty()) ar.pop();
+        while (!r.empty()) r.pop();
+        while (!aw.empty()) aw.pop();
+        while (!w.empty()) w.pop();
+        while (!b.empty()) b.pop();
+        r_index = -1;
+    }
+    void beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
+        signal_to_transaction(pin);
+        transaction_process();
+    }
+protected:
+    virtual axi_resp do_read (uint64_t start_addr, uint64_t size, uint8_t* buffer) = 0;
+    virtual axi_resp do_write(uint64_t start_addr, uint64_t size, const uint8_t* buffer) = 0;
+private:
+    std::queue <ar_packet> ar;
+    std::queue <r_packet> r;
+    std::queue <aw_packet> aw;
+    std::queue <w_packet> w;
+    std::queue <b_packet> b;
+    r_packet cur_r;
+    w_packet cur_w;
+    int r_index = -1;
+    void signal_to_transaction(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
+        // TODO: add memory timing model and support bit endian host ISA
+        // input ar
+        if (pin.arvalid && pin.arready) { // ar.fire
+            ar_packet tmp;
+            tmp.id = pin.arid;
+            tmp.addr = pin.araddr;
+            tmp.len = pin.arlen;
+            tmp.size = pin.arsize;
+            tmp.burst = static_cast<axi_burst_type>(pin.arburst);
+            ar.push(tmp);
         }
-        void beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-            read_channel(pin);
-            write_channel(pin);
+        // input aw
+        if (pin.awvalid && pin.awready) { // aw.fire
+            aw_packet tmp;
+            tmp.id = pin.awid;
+            tmp.addr = pin.awaddr;
+            tmp.len = pin.awlen;
+            tmp.size = pin.awsize;
+            tmp.burst = static_cast<axi_burst_type>(pin.awburst);
+            aw.push(tmp);
         }
-        void reset() {
-            read_busy = false;
-            read_last = false;
-            read_wait = false;
-            read_delay = 0;
-            write_busy = false;
-            b_busy     = false;
-            write_delay = 0;
-        }
-    protected:
-        virtual axi_resp do_read (uint64_t start_addr, uint64_t size, uint8_t* buffer) = 0;
-        virtual axi_resp do_write(uint64_t start_addr, uint64_t size, const uint8_t* buffer) = 0;
-    private:
-        unsigned int D_bytes = D_WIDTH / 8;
-        int delay;
-    private:
-        bool read_busy = false; // during trascation except last
-        bool read_last = false; // wait rready and free
-        bool read_wait = false; // ar ready, but waiting the last read to ready
-        int  read_delay = 0; // delay
-        uint64_t        r_start_addr;   // lower bound of transaction address
-        uint64_t        r_current_addr; // current burst address in r_data buffer (physical address % 4096)
-        AUTO_SIG(       arid        ,ID_WIDTH-1,0);
-        axi_burst_type  r_burst_type;
-        unsigned int    r_each_len;
-        unsigned int    r_nr_trans;
-        unsigned int    r_cur_trans;
-        unsigned int    r_tot_len;
-        bool            r_out_ready;
-        bool            r_early_err;
-        axi_resp        r_resp;
-        uint8_t         r_data[4096];
-
-        bool read_check() {
-            if (r_burst_type == BURST_RESERVED) return false;
-            if (r_burst_type == BURST_WRAP && (r_current_addr % r_each_len)) return false;
-            if (r_burst_type == BURST_WRAP) {
-                if (r_nr_trans != 2 && r_nr_trans != 4 && r_nr_trans != 8 && r_nr_trans != 16) {
-                    return false;
-                }
+        // input w
+        if (pin.wvalid && pin.wready) { // w.fire
+            for (int i = 0; i < D_WIDTH / 8; i++) {
+                cur_w.data.push_back(((char*)(&pin.wdata))[i]);
+                cur_w.strb.push_back( ( (((char*)(&pin.wstrb))[i/8]) & (1 << (i % 8)) ) ? true : false);
             }
-            uint64_t rem_addr = 4096 - (r_start_addr % 4096);
-            if (r_tot_len > rem_addr) return false;
-            if (r_each_len > D_bytes) return false;
-            return true;
-        }
-
-        void read_beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-            pin.rid = arid;
-            pin.rvalid  = 1;
-            bool update = false;
-            if (pin.rready || r_cur_trans == 0) {
-                r_cur_trans += 1;
-                update = true;
-                if (r_cur_trans == r_nr_trans) {
-                    read_last = true;
-                    read_busy = false;
-                }
-            }
-            pin.rlast = read_last;
-            if (update) {
-                if (r_early_err) {
-                    pin.rresp = RESP_DECERR;
-                    pin.rdata = 0;
-                }
-                else if (r_burst_type == BURST_FIXED) {
-                    pin.rresp = do_read(static_cast<uint64_t>(r_start_addr), static_cast<uint64_t>(r_tot_len), &r_data[r_start_addr % 4096]);
-                    pin.rdata = *(AUTO_SIG(*,D_WIDTH-1,0))(&r_data[(r_start_addr % 4096) - (r_start_addr % D_bytes)]);
-                }
-                else { // INCR, WRAP
-                    pin.rresp = r_resp;
-                    pin.rdata = *(AUTO_SIG(*,D_WIDTH-1,0))(&r_data[r_current_addr - (r_current_addr % D_bytes)]);
-                    r_current_addr += r_each_len - (r_current_addr % r_each_len);
-                    if (r_burst_type == BURST_WRAP && r_current_addr == ((r_start_addr % 4096) + r_each_len * r_nr_trans)) {
-                        r_current_addr = r_start_addr % 4096;
-                    }
-                }
+            if (pin.wlast) {
+                w.push(cur_w);
+                cur_w.data.clear();
+                cur_w.strb.clear();
             }
         }
-
-        void read_init(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-            arid            = static_cast<unsigned int>(pin.arid);
-            r_burst_type    = static_cast<axi_burst_type>(pin.arburst);
-            r_each_len      = 1 << pin.arsize;
-            r_nr_trans      = pin.arlen + 1;
-            r_current_addr  = (r_burst_type == BURST_WRAP) ? (pin.araddr % 4096) : ((pin.araddr % 4096) - (pin.araddr % r_each_len));
-            r_start_addr    = (r_burst_type == BURST_WRAP) ? (pin.araddr - (pin.araddr % (r_each_len * r_nr_trans) ) ) : pin.araddr;
-            r_cur_trans     = 0;
-            r_tot_len       = ( (r_burst_type == BURST_FIXED) ? r_each_len : r_each_len * r_nr_trans) - (r_start_addr % r_each_len); // first beat can be unaligned
-            r_early_err     = !read_check();
-            assert(!r_early_err);
-            // clear unused bits.
-            if (r_start_addr % D_bytes) {
-                uint64_t clear_addr = r_start_addr % 4096;
-                clear_addr -= clear_addr % D_bytes;
-                memset(&r_data[clear_addr],0x00,D_bytes);
-            }
-            if ((r_start_addr + r_tot_len) % D_bytes) {
-                uint64_t clear_addr = (r_start_addr + r_tot_len) % 4096;
-                clear_addr -= (clear_addr % D_bytes);
-                memset(&r_data[clear_addr],0x00,D_bytes);
-            }
-            // For BURST_FIXED, we call do_read every read burst
-            if (!r_early_err && r_burst_type != BURST_FIXED) 
-                r_resp = do_read(static_cast<uint64_t>(r_start_addr), static_cast<uint64_t>(r_tot_len), &r_data[r_start_addr % 4096] );
-        }
-
-        void read_channel(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-            // Read step 1. release old transaction
-            if (read_last && pin.rready) {
-                read_last = false;
-                pin.rvalid = 0;     // maybe change in the following code
-                pin.rlast = 0;
-                if (read_wait) {
-                    read_wait = false;
-                    read_busy = true;
-                    read_delay = delay;
+        // output r {
+        if (r_index != -1) { // check pending transaction first
+            if (pin.rready) {
+                // next
+                if (pin.rlast) {
+                    // here is the last transation, stop
+                    // if there is a new transaction, it will be solved in the next if
+                    r_index = -1;
                 }
-            }
-            // Read step 2. check new address come
-            if (pin.arready && pin.arvalid) {
-                read_init(pin);
-                if (read_last) read_wait = true;
                 else {
-                    read_busy = true;
-                    read_delay = delay;
+                    for (int i = 0; i < D_WIDTH / 8; i++) {
+                        ((char*)&(pin.rdata))[i] = cur_r.data[r_index++];
+                    }
+                    pin.rlast = (r_index == cur_r.data.size());
                 }
             }
-            // Read step 3. do read trascation
-            if (read_busy) {
-                if (read_delay) read_delay --;
-                else read_beat(pin);
+        }
+        if (r_index == -1 && !r.empty()) { // start new transation
+            cur_r = r.front();
+            r.pop();
+            r_index = 0;
+            pin.rid = cur_r.id;
+            for (int i = 0; i < D_WIDTH / 8; i++) {
+                ((char*)&(pin.rdata))[i] = cur_r.data[r_index++];
             }
-            // Read step 4. set arready before new address come, it will change read_busy and read_wait status
-            pin.arready = !read_busy && !read_wait;
+            pin.rlast = (r_index == cur_r.data.size());
+            pin.rresp = cur_r.resp;
         }
-    private:
-        bool write_busy = false;
-        bool b_busy     = false;
-        int  write_delay = 0;
-        uint64_t        w_start_addr;
-        uint64_t        w_current_addr;
-        AUTO_SIG(       awid        ,ID_WIDTH-1,0);
-        axi_burst_type  w_burst_type;
-        unsigned int    w_each_len;
-        int             w_nr_trans;
-        int             w_cur_trans;
-        unsigned int    w_tot_len;
-        bool            w_out_ready;
-        bool            w_early_err;
-        axi_resp        w_resp;
-        uint8_t         w_buffer[D_WIDTH/8];
-        bool write_check() {
-            if (w_burst_type == BURST_RESERVED) return false;
-            if (w_burst_type == BURST_WRAP && (w_current_addr % w_each_len)) return false;
-            if (w_burst_type == BURST_WRAP) {
-                if (w_nr_trans != 2 && w_nr_trans != 4 && w_nr_trans != 8 && w_nr_trans != 16) return false;
-            }
-            uint64_t rem_addr = 4096 - (w_start_addr % 4096);
-            if (w_tot_len > rem_addr) return false;
-            if (w_each_len > D_bytes) return false;
-            return true;
+        // output r }
+        // output b
+        if (pin.bvalid && pin.bready) pin.bvalid = false;
+        if (!pin.bvalid && !b.empty()) {
+            b_packet tmp = b.front();
+            b.pop();
+            pin.bid = tmp.id;
+            pin.bresp = tmp.resp;
+            pin.bvalid = true;
         }
-        void write_init(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-            awid            = pin.awid;
-            w_burst_type    = static_cast<axi_burst_type>(pin.awburst);
-            w_each_len      = 1 << pin.awsize;
-            w_nr_trans      = pin.awlen + 1;
-            w_current_addr  = (w_burst_type == BURST_WRAP) ? pin.awaddr : (pin.awaddr - (pin.awaddr % w_each_len));
-            w_start_addr    = (w_burst_type == BURST_WRAP) ? (pin.awaddr - (pin.awaddr % (w_each_len * w_nr_trans))) : pin.awaddr;
-            w_cur_trans     = 0;
-            w_tot_len       = w_each_len * w_nr_trans - (w_start_addr % w_each_len);
-            w_early_err     = !write_check();
-            assert(!w_early_err);
-            w_resp          = RESP_OKEY;
-        }
-        // pair<start,len>
-        std::vector<std::pair<int,int> > strb_to_range(AUTO_IN (wstrb,(D_WIDTH/8)-1, 0), int st_pos, int ed_pos) {
-            std::vector<std::pair<int,int> > res;
-            int l = st_pos;
-            while (l < ed_pos) {
-                if ((wstrb >> l) & 1) {
-                    int r = l;
-                    while ((wstrb >> r) & 1 && r < ed_pos) r ++;
-                    res.emplace_back(l,r-l);
-                    l = r + 1;
+        // output control signal
+        pin.arready = 1;
+        pin.awready = 1;
+        pin.wready = 1;
+        pin.rvalid = (r_index != -1);
+    }
+    void transaction_process() {
+        ar_process();
+        aw_process();
+    }
+    void ar_process() {
+        while (!ar.empty()) {
+            ar_packet cur_ar = ar.front();
+            ar.pop();
+            std::vector<char> tmp((D_WIDTH/8)*(cur_ar.len+1), 0);
+            switch (cur_ar.burst) {
+                case BURST_FIXED: {
+                    uint64_t cur_addr_l = cur_ar.addr;
+                    uint64_t cur_addr_r = cur_addr_l + (1 << cur_ar.size) - cur_addr_l % (1 << cur_ar.size);
+                    int res = RESP_OKEY;
+                    for (int i=0;i<cur_ar.len+1;i++) {
+                        res |= do_read(cur_addr_l, cur_addr_r - cur_addr_l, (unsigned char*)&tmp.data()[(D_WIDTH / 8) * i + cur_addr_l % (D_WIDTH / 8)]);
+                    }
+                    r.push(r_packet(static_cast<axi_resp>(res), cur_ar.id, tmp));
+                    break;
                 }
-                else l ++;
+                case BURST_INCR: {
+                    uint64_t cur_addr_l = cur_ar.addr;
+                    int res = RESP_OKEY;
+                    for (int i=0;i<cur_ar.len+1;i++) {
+                        uint64_t cur_addr_r = cur_addr_l + (1 << cur_ar.size) - cur_addr_l % (1 << cur_ar.size);
+                        res |= do_read(cur_addr_l, cur_addr_r - cur_addr_l, (unsigned char*)&tmp.data()[(D_WIDTH / 8) * i + cur_addr_l % (D_WIDTH / 8)]);
+                        cur_addr_l = cur_addr_r;
+                    }
+                    r.push(r_packet(static_cast<axi_resp>(res), cur_ar.id, tmp));
+                    break;
+                }
+                case BURST_WRAP: {
+                    if (cur_ar.len + 1 == 2 || cur_ar.len + 1 == 4 || cur_ar.len + 1 == 8 || cur_ar.len + 1 == 16) {
+                        if (cur_ar.addr % (1 << cur_ar.size) == 0) {
+                            uint64_t start_addr = cur_ar.addr - cur_ar.addr % ((1 << cur_ar.size) * (cur_ar.len + 1));
+                            uint64_t end_addr = start_addr + ((1 << cur_ar.size) * (cur_ar.len + 1));
+                            uint64_t cur_addr = cur_ar.addr;
+                            int res = RESP_OKEY;
+                            for (int i=0;i<cur_ar.len+1;i++) {
+                                res |= do_read(cur_addr, (1 << cur_ar.size), (unsigned char*)&tmp.data()[(D_WIDTH / 8) * i + cur_addr % (D_WIDTH / 8)]);
+                                cur_addr += (1 << cur_ar.size);
+                                if (cur_addr == end_addr) cur_addr = start_addr;
+                            }
+                            r.push(r_packet(static_cast<axi_resp>(res), cur_ar.id, tmp));
+                        }
+                        else {
+                            r.push(r_packet(RESP_DECERR, cur_ar.id, tmp));
+                        }
+                    }
+                    else {
+                        r.push(r_packet(RESP_DECERR, cur_ar.id, tmp));
+                    }
+                    break;
+                }
+                default: {
+                    r.push(r_packet(RESP_DECERR, cur_ar.id, tmp));
+                    break;
+                }
             }
-            return res;
         }
-        void write_beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-            if (pin.wvalid && pin.wready) {
-                w_cur_trans += 1;
-                if (w_cur_trans == w_nr_trans) {
-                    write_busy = false;
-                    b_busy = true;
-                    if (!pin.wlast) {
-                        w_early_err = true;
-                        assert(false);
+    }
+    void aw_process() {
+        while (!aw.empty() && !w.empty()) {
+            aw_packet cur_aw = aw.front();
+            aw.pop();
+            w_packet cur_w = w.front();
+            w.pop();
+            // check the length first
+            if ( (cur_aw.len + 1) * (D_WIDTH / 8) == cur_w.data.size() && (1 << cur_aw.size) <= (D_WIDTH / 8) ) {
+                switch (cur_aw.burst) {
+                    case BURST_FIXED: {
+                        uint64_t cur_addr_l = cur_aw.addr;
+                        uint64_t cur_addr_r = cur_addr_l + (1 << cur_aw.size) - cur_addr_l % (1 << cur_aw.size);
+                        int res = RESP_OKEY;
+                        for (int i=0;i<cur_aw.len+1;i++) {
+                            res |= do_write_with_strobe(cur_addr_l, (cur_addr_l % (D_WIDTH / 8)) + (D_WIDTH / 8) * i, 
+                                                        cur_addr_r - cur_addr_l, cur_w.data, cur_w.strb);
+                        }
+                        b.push(b_packet(static_cast<axi_resp>(res), cur_aw.id));
+                        break;
+                    }
+                    case BURST_INCR: {
+                        uint64_t cur_addr_l = cur_aw.addr;
+                        int res = RESP_OKEY;
+                        for (int i=0;i<cur_aw.len+1;i++) {
+                            uint64_t cur_addr_r = cur_addr_l + (1 << cur_aw.size) - cur_addr_l % (1 << cur_aw.size);
+                            res |= do_write_with_strobe(cur_addr_l, (cur_addr_l % (D_WIDTH / 8)) + (D_WIDTH / 8) * i, 
+                                                        cur_addr_r - cur_addr_l, cur_w.data, cur_w.strb);
+                            cur_addr_l = cur_addr_r;
+                        }
+                        b.push(b_packet(static_cast<axi_resp>(res), cur_aw.id));
+                        break;
+                    }
+                    case BURST_WRAP: {
+                        if (cur_aw.len + 1 == 2 || cur_aw.len + 1 == 4 || cur_aw.len + 1 == 8 || cur_aw.len + 1 == 16) {
+                            if (cur_aw.addr % (1 << cur_aw.size) == 0) {
+                                uint64_t start_addr = cur_aw.addr - cur_aw.addr % ((1 << cur_aw.size) * (cur_aw.len + 1));
+                                uint64_t end_addr = start_addr + ((1 << cur_aw.size) * (cur_aw.len + 1));
+                                uint64_t cur_addr = cur_aw.addr;
+                                int res = RESP_OKEY;
+                                for (int i=0;i<cur_aw.len+1;i++) {
+                                    res |= do_write_with_strobe(cur_addr, (cur_addr % (D_WIDTH / 8)) + (D_WIDTH / 8) * i, 
+                                                                (1 << cur_aw.size), cur_w.data, cur_w.strb);
+                                    cur_addr += (1 << cur_aw.size);
+                                    if (cur_addr == end_addr) cur_addr = start_addr;
+                                }
+                                b.push(b_packet(static_cast<axi_resp>(res), cur_aw.id));
+                            }
+                            else {
+                                b.push(b_packet(RESP_DECERR, cur_aw.id));
+                            }
+                        }
+                        else {
+                            b.push(b_packet(RESP_DECERR, cur_aw.id));
+                        }
+                        break;
+                    }
+                    default: {
+                        b.push(b_packet(RESP_DECERR, cur_aw.id));
+                        break;
                     }
                 }
-                if (w_early_err) return;
-                uint64_t addr_base = w_current_addr;
-                if (w_burst_type != BURST_FIXED) {
-                    w_current_addr += w_each_len - (addr_base % w_each_len);
-                    if (w_current_addr == (w_start_addr + w_each_len * w_nr_trans)) w_cur_trans =  w_start_addr; // warp support
+            }
+            else {
+                b.push(b_packet(RESP_DECERR, cur_aw.id));
+            }
+        }
+    }
+    axi_resp do_write_with_strobe(uint64_t start_addr, int64_t data_pos, int64_t data_len, std::vector<char> &data, std::vector<bool> &strb) {
+        // As the type of std::vector<bool> is very special, we don't use it .data() to pass the bool* pointer
+        // we use the data_pos and data_len instead and pass the reference of the vector<char> and vector<bool> as arguments
+        int64_t l = data_pos;
+        int64_t r = data_pos;
+        int res = RESP_OKEY;
+        for (int64_t i = data_pos; i < data_pos + data_len; i++) {
+            if (strb[i]) {
+                r = i + 1;
+            }
+            else {
+                if (l < r) {
+                    res |= do_write(start_addr + l - data_pos, r - l, (unsigned char*)&data.data()[l]);
                 }
-                uint64_t in_data_pos = addr_base % D_bytes;
-                addr_base -= addr_base % D_bytes;
-                uint64_t rem_data_pos = w_each_len - (in_data_pos % w_each_len); // unaligned support
-                // split discontinuous wstrb bits to small requests
-                std::vector<std::pair<int,int> > range = strb_to_range(pin.wstrb,in_data_pos,in_data_pos+rem_data_pos);
-                for (std::pair<int,int> sub_range : range) {
-                    int &addr = sub_range.first;
-                    int &len  = sub_range.second;
-                    memcpy(w_buffer,&(pin.wdata),sizeof(pin.wdata));
-                    w_resp = static_cast<axi_resp>(static_cast<int>(w_resp) | static_cast<int>(do_write(addr_base+addr,len,w_buffer+addr)));
-                }
+                l = i + 1;
             }
         }
-        void b_beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-            pin.bid = awid;
-            pin.bresp = w_early_err ? RESP_DECERR : w_resp;
-            if (pin.bvalid && pin.bready) b_busy = false;
+        if (l < r) {
+            res |= do_write(start_addr + l - data_pos, r - l, (unsigned char*)&data.data()[l]);
         }
-        void write_channel(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-            if (pin.awready && pin.awvalid) {
-                write_init(pin);
-                write_busy = true;
-                write_delay = delay;
-            }
-            if (write_busy) {
-                if (write_delay) write_delay --;
-                else write_beat(pin);
-            }
-            if (b_busy) {
-                b_beat(pin);
-            }
-            pin.bvalid = b_busy;
-            pin.awready = !write_busy && !b_busy;
-            if (delay) pin.wready = write_busy && !write_delay;
-            else pin.wready = !b_busy;
-        }
+        return static_cast<axi_resp>(res);
+    }
 };
 
 #endif
