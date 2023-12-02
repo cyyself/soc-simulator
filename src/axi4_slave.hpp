@@ -24,6 +24,8 @@ public:
         while (!w.empty()) w.pop();
         while (!b.empty()) b.pop();
         r_index = -1;
+        cur_w.data.clear();
+        cur_w.strb.clear();
     }
     void beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
         input_transaction(pin);
