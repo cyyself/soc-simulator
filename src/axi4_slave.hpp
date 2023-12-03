@@ -29,11 +29,15 @@ public:
         r_index = -1;
         cur_w.data.clear();
         cur_w.strb.clear();
+        for (auto &each_model : timing_constrain) {
+            each_model.second->reset();
+        }
     }
     void beat(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
         input_transaction(pin);
-        do_timing_constrain();
+        if (delay_model) delay_model->tick();
         transaction_process();
+        do_timing_constrain();
         output_transaction(pin);
     }
     bool insert_memory_timing_model(uint64_t start_addr, uint64_t length, memory_timing_model* model) {
@@ -66,7 +70,7 @@ private:
     std::map < std::pair<uint64_t,uint64_t>, memory_timing_model* > timing_constrain;
     std::map < int64_t, ar_packet > pending_ar;
     std::map < int64_t, aw_w_packet > pending_aw_w;
-    int64_t req_id_gen; // +2 everytime, lsb[0]: write else read
+    int64_t req_id_gen = 0; // +2 everytime, lsb[0]: write else read
     memory_timing_model* find_timing_model(uint64_t start_addr, uint64_t size) {
         auto it = timing_constrain.upper_bound(std::make_pair(start_addr, ULONG_MAX));
         if (it == timing_constrain.begin()) return nullptr;
@@ -77,7 +81,6 @@ private:
         else return nullptr;
     }
     void do_timing_constrain() {
-        if (delay_model) delay_model->tick();
         if (pending_ar.empty() && pending_aw_w.empty()) return;
         for (auto &each_model : timing_constrain) {
             while (each_model.second->has_finished_req()) {

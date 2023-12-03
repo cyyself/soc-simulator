@@ -39,7 +39,7 @@ public:
     }
 private:
     void queue_move() {
-        if (!unfinished_queue.empty() && unfinished_queue.front().first <= time) {
+        while (!unfinished_queue.empty() && unfinished_queue.front().first == time) {
             finished_queue.push(unfinished_queue.front().second);
             unfinished_queue.pop();
         }
