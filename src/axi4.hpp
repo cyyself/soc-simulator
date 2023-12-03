@@ -354,6 +354,16 @@ struct w_packet { // entire packet
     }
 };
 
+struct aw_w_packet {
+    aw_packet aw;
+    w_packet w;
+    aw_w_packet() { }
+    aw_w_packet(aw_packet _aw, w_packet _w) {
+        aw = _aw;
+        w = _w;
+    }  
+};
+
 struct r_packet { // entire packet
     axi_resp resp;
     uint64_t id;
