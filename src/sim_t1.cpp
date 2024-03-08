@@ -1,5 +1,8 @@
+#define ENABLE_TRACE
 #include "verilated.h"
+#ifdef ENABLE_TRACE
 #include "verilated_fst_c.h"
+#endif
 #include "VT1Subsystem.h"
 
 
@@ -61,13 +64,14 @@ void connect_wire(tilelink_ptr<30, 8, 16, 3> &scalar_ptr, tilelink_ptr<29, 8, 2,
 int main(int argc, char** argv, char** env) {
     Verilated::commandArgs(argc, argv);
     VT1Subsystem *top = new VT1Subsystem;
-
+#ifdef ENABLE_TRACE
+    Verilated::traceEverOn(true);
     // fst
     VerilatedFstC fst;
     // connect fst for trace
     top->trace(&fst,0);
     fst.open("trace.fst");
-
+#endif
     tilelink_ptr <30, 8, 16, 3> mem_ptr;
     tilelink_ptr <29, 8, 2, 3> mmio_ptr;
 
@@ -89,10 +93,10 @@ int main(int argc, char** argv, char** env) {
 
     top->io_localT1Subsystem_0_reset = 1;
     top->io_localT1Subsystem_0_clock = 0;
-    top->reset_vector_0 = 0x00000000;
+    top->reset_vector_0 = 0x20000000;
     uint64_t ticks = 0;
 
-    while (!Verilated::gotFinish()) {
+    while (!Verilated::gotFinish() && ticks < 10000) {
         top->io_localT1Subsystem_0_clock = !top->io_localT1Subsystem_0_clock;
         if (ticks++ == 9) top->io_localT1Subsystem_0_reset = 0;
         if (top->io_localT1Subsystem_0_clock && !top->io_localT1Subsystem_0_reset) {
@@ -108,8 +112,13 @@ int main(int argc, char** argv, char** env) {
             mmio_sigs.update_output(mmio_ref);
         }
         top->eval();
+#ifdef ENABLE_TRACE
         fst.dump(ticks);
+#endif
     }
+#ifdef ENABLE_TRACE
+    fst.close();
+#endif
     top->final();
     return 0;
 }
