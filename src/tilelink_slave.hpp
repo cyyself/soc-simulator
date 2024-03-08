@@ -113,6 +113,7 @@ private:
                 default: assert(false);
             }
         }
+        pin.a_ready = 1;
     }
 
     void output_d(tilelink_ref<A_WIDTH, W_WIDTH, O_WIDTH, Z_WIDTH> &pin) {
