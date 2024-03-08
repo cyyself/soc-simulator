@@ -15,27 +15,27 @@ template <unsigned int A_WIDTH, unsigned int W_WIDTH, unsigned int O_WIDTH,
           unsigned int Z_WIDTH>
 struct tilelink_ptr {
     // a
-    AUTO_IN (*a_bits_opcode , 2         , 0)    = NULL;
-    AUTO_IN (*a_bits_param  , 2         , 0)    = NULL;
-    AUTO_IN (*a_bits_size   , Z_WIDTH   , 0)    = NULL;
-    AUTO_IN (*a_bits_source , O_WIDTH   , 0)    = NULL;
-    AUTO_IN (*a_bits_address, A_WIDTH   , 0)    = NULL;
-    AUTO_IN (*a_bits_mask   , W_WIDTH   , 0)    = NULL;
-    AUTO_IN (*a_bits_data   , W_WIDTH*8 , 0)    = NULL;
-    AUTO_IN (*a_bits_corrupt, 0         , 0)    = NULL;
-    AUTO_IN (*a_valid       , 0         , 0)    = NULL;
-    AUTO_OUT(*a_ready       , 0         , 0)    = NULL;
+    AUTO_IN (*a_bits_opcode , 2             , 0)    = NULL;
+    AUTO_IN (*a_bits_param  , 2             , 0)    = NULL;
+    AUTO_IN (*a_bits_size   , Z_WIDTH-1     , 0)    = NULL;
+    AUTO_IN (*a_bits_source , O_WIDTH-1     , 0)    = NULL;
+    AUTO_IN (*a_bits_address, A_WIDTH-1     , 0)    = NULL;
+    AUTO_IN (*a_bits_mask   , W_WIDTH-1     , 0)    = NULL;
+    AUTO_IN (*a_bits_data   , W_WIDTH*8-1   , 0)    = NULL;
+    AUTO_IN (*a_bits_corrupt, 0             , 0)    = NULL;
+    AUTO_IN (*a_valid       , 0             , 0)    = NULL;
+    AUTO_OUT(*a_ready       , 0             , 0)    = NULL;
     // d
-    AUTO_OUT(*d_bits_opcode , 2         , 0)    = NULL;
-    AUTO_OUT(*d_bits_param  , 2         , 0)    = NULL;
-    AUTO_OUT(*d_bits_size   , Z_WIDTH   , 0)    = NULL;
-    AUTO_OUT(*d_bits_source , O_WIDTH   , 0)    = NULL;
+    AUTO_OUT(*d_bits_opcode , 2             , 0)    = NULL;
+    AUTO_OUT(*d_bits_param  , 2             , 0)    = NULL;
+    AUTO_OUT(*d_bits_size   , Z_WIDTH-1     , 0)    = NULL;
+    AUTO_OUT(*d_bits_source , O_WIDTH-1     , 0)    = NULL;
     // no sink here for TL-UH
-    AUTO_OUT(*d_bits_denied , 0         , 0)    = NULL;
-    AUTO_OUT(*d_bits_data   , W_WIDTH*8 , 0)    = NULL;
-    AUTO_OUT(*d_bits_corrupt, 0         , 0)    = NULL;
-    AUTO_OUT(*d_valid       , 0         , 0)    = NULL;
-    AUTO_IN (*d_ready       , 0         , 0)    = NULL;
+    AUTO_OUT(*d_bits_denied , 0             , 0)    = NULL;
+    AUTO_OUT(*d_bits_data   , W_WIDTH*8-1   , 0)    = NULL;
+    AUTO_OUT(*d_bits_corrupt, 0             , 0)    = NULL;
+    AUTO_OUT(*d_valid       , 0             , 0)    = NULL;
+    AUTO_IN (*d_ready       , 0             , 0)    = NULL;
     bool check() {
         std::set <void*> s;
         s.insert((void*)a_bits_opcode);
@@ -65,27 +65,27 @@ template <unsigned int A_WIDTH, unsigned int W_WIDTH, unsigned int O_WIDTH,
           unsigned int Z_WIDTH>
 struct tilelink_ref {
     // a
-    AUTO_IN (&a_bits_opcode , 2         , 0);
-    AUTO_IN (&a_bits_param  , 2         , 0);
-    AUTO_IN (&a_bits_size   , Z_WIDTH   , 0);
-    AUTO_IN (&a_bits_source , O_WIDTH   , 0);
-    AUTO_IN (&a_bits_address, A_WIDTH   , 0);
-    AUTO_IN (&a_bits_mask   , W_WIDTH   , 0);
-    AUTO_IN (&a_bits_data   , W_WIDTH*8 , 0);
-    AUTO_IN (&a_bits_corrupt, 0         , 0);
-    AUTO_IN (&a_valid       , 0         , 0);
-    AUTO_OUT(&a_ready      , 0         , 0);
+    AUTO_IN (&a_bits_opcode , 2             , 0);
+    AUTO_IN (&a_bits_param  , 2             , 0);
+    AUTO_IN (&a_bits_size   , Z_WIDTH-1     , 0);
+    AUTO_IN (&a_bits_source , O_WIDTH-1     , 0);
+    AUTO_IN (&a_bits_address, A_WIDTH-1     , 0);
+    AUTO_IN (&a_bits_mask   , W_WIDTH-1     , 0);
+    AUTO_IN (&a_bits_data   , W_WIDTH*8-1   , 0);
+    AUTO_IN (&a_bits_corrupt, 0             , 0);
+    AUTO_IN (&a_valid       , 0             , 0);
+    AUTO_OUT(&a_ready       , 0             , 0);
     // d
-    AUTO_OUT(&d_bits_opcode , 2         , 0);
-    AUTO_OUT(&d_bits_param  , 2         , 0);
-    AUTO_OUT(&d_bits_size   , Z_WIDTH   , 0);
-    AUTO_OUT(&d_bits_source , O_WIDTH   , 0);
+    AUTO_OUT(&d_bits_opcode , 2             , 0);
+    AUTO_OUT(&d_bits_param  , 2             , 0);
+    AUTO_OUT(&d_bits_size   , Z_WIDTH-1     , 0);
+    AUTO_OUT(&d_bits_source , O_WIDTH-1     , 0);
     // no sink here for TL-UH
-    AUTO_OUT(&d_bits_denied , 0         , 0);
-    AUTO_OUT(&d_bits_data   , W_WIDTH*8 , 0);
-    AUTO_OUT(&d_bits_corrupt, 0         , 0);
-    AUTO_OUT(&d_valid       , 0         , 0);
-    AUTO_IN (&d_ready       , 0         , 0);
+    AUTO_OUT(&d_bits_denied , 0             , 0);
+    AUTO_OUT(&d_bits_data   , W_WIDTH*8-1   , 0);
+    AUTO_OUT(&d_bits_corrupt, 0             , 0);
+    AUTO_OUT(&d_valid       , 0             , 0);
+    AUTO_IN (&d_ready       , 0             , 0);
 
     tilelink_ref(tilelink_ptr <A_WIDTH, W_WIDTH, O_WIDTH, Z_WIDTH> &p):
         a_bits_opcode (*(p.a_bits_opcode)),
@@ -116,27 +116,27 @@ template <unsigned int A_WIDTH, unsigned int W_WIDTH, unsigned int O_WIDTH,
           unsigned int Z_WIDTH>
 struct tilelink {
     // a
-    AUTO_IN (a_bits_opcode , 2         , 0);
-    AUTO_IN (a_bits_param  , 2         , 0);
-    AUTO_IN (a_bits_size   , Z_WIDTH   , 0);
-    AUTO_IN (a_bits_source , O_WIDTH   , 0);
-    AUTO_IN (a_bits_address, A_WIDTH   , 0);
-    AUTO_IN (a_bits_mask   , W_WIDTH   , 0);
-    AUTO_IN (a_bits_data   , W_WIDTH*8 , 0);
-    AUTO_IN (a_bits_corrupt, 0         , 0);
-    AUTO_IN (a_valid       , 0         , 0);
-    AUTO_OUT(a_ready       , 0         , 0);
+    AUTO_IN (a_bits_opcode , 2              , 0);
+    AUTO_IN (a_bits_param  , 2              , 0);
+    AUTO_IN (a_bits_size   , Z_WIDTH-1      , 0);
+    AUTO_IN (a_bits_source , O_WIDTH-1      , 0);
+    AUTO_IN (a_bits_address, A_WIDTH-1      , 0);
+    AUTO_IN (a_bits_mask   , W_WIDTH-1      , 0);
+    AUTO_IN (a_bits_data   , W_WIDTH*8-1    , 0);
+    AUTO_IN (a_bits_corrupt, 0              , 0);
+    AUTO_IN (a_valid       , 0              , 0);
+    AUTO_OUT(a_ready       , 0              , 0);
     // d
-    AUTO_OUT(d_bits_opcode , 2         , 0);
-    AUTO_OUT(d_bits_param  , 2         , 0);
-    AUTO_OUT(d_bits_size   , Z_WIDTH   , 0);
-    AUTO_OUT(d_bits_source , O_WIDTH   , 0);
+    AUTO_OUT(d_bits_opcode , 2              , 0);
+    AUTO_OUT(d_bits_param  , 2              , 0);
+    AUTO_OUT(d_bits_size   , Z_WIDTH-1      , 0);
+    AUTO_OUT(d_bits_source , O_WIDTH-1      , 0);
     // no sink here for TL-UH
-    AUTO_OUT(d_bits_denied , 0         , 0);
-    AUTO_OUT(d_bits_data   , W_WIDTH*8 , 0);
-    AUTO_OUT(d_bits_corrupt, 0         , 0);
-    AUTO_OUT(d_valid       , 0         , 0);
-    AUTO_IN (d_ready       , 0         , 0);
+    AUTO_OUT(d_bits_denied , 0              , 0);
+    AUTO_OUT(d_bits_data   , W_WIDTH*8-1    , 0);
+    AUTO_OUT(d_bits_corrupt, 0              , 0);
+    AUTO_OUT(d_valid       , 0              , 0);
+    AUTO_IN (d_ready       , 0              , 0);
     
     tilelink() {
         // reset all pointer to zero
