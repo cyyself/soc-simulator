@@ -1,4 +1,5 @@
 #include "verilated.h"
+#include "verilated_fst_c.h"
 #include "VT1Subsystem.h"
 
 
