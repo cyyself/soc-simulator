@@ -142,6 +142,7 @@ private:
             pin.d_bits_size = cur_d.size;
             pin.d_bits_source = cur_d.source;
             pin.d_bits_corrupt = cur_d.corrupt;
+            pin.d_bits_denied = cur_d.denied;
 
             if (cur_d.opcode == TL_D_AccessAckData) {
                 int end = std::min(W_WIDTH, cur_d.address % W_WIDTH + pin.d_bits_size) - cur_d.address % W_WIDTH;
