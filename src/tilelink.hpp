@@ -97,7 +97,7 @@ struct tilelink_ref {
         a_bits_data   (*(p.a_bits_data)),
         a_bits_corrupt(*(p.a_bits_corrupt)),
         a_valid       (*(p.a_valid)),
-        a_ready       (*(p.a_ready),
+        a_ready       (*(p.a_ready)),
         d_bits_opcode (*(p.d_bits_opcode)),
         d_bits_param  (*(p.d_bits_param)),
         d_bits_size   (*(p.d_bits_size)),
@@ -106,7 +106,7 @@ struct tilelink_ref {
         d_bits_data   (*(p.d_bits_data)),
         d_bits_corrupt(*(p.d_bits_corrupt)),
         d_valid       (*(p.d_valid)),
-        d_ready       (*(p.d_ready) {
+        d_ready       (*(p.d_ready)) {
     }
 
     tilelink_ref(tilelink <A_WIDTH, W_WIDTH, O_WIDTH, Z_WIDTH> &p);
@@ -171,6 +171,7 @@ struct tilelink {
 
 template <unsigned int A_WIDTH, unsigned int W_WIDTH, unsigned int O_WIDTH,
           unsigned int Z_WIDTH>
+tilelink_ref <A_WIDTH, W_WIDTH, O_WIDTH, Z_WIDTH>::
 tilelink_ref(tilelink <A_WIDTH, W_WIDTH, O_WIDTH, Z_WIDTH> &p):
     a_bits_opcode (p.a_bits_opcode),
     a_bits_param  (p.a_bits_param),
@@ -244,9 +245,48 @@ struct d_packet {
     uint8_t param;
     uint64_t size;
     uint64_t source;
+    uint64_t address; // for data padding calculation
     std::vector <char> data;
     bool corrupt;
     bool denied;
 };
+
+d_packet make_AccessAck(uint64_t size, uint64_t source, bool denied) {
+    d_packet d;
+    d.opcode = TL_D_AccessAck;
+    d.param = 0;
+    d.size = size;
+    d.source = source;
+    d.address = 0;
+    d.corrupt = false;
+    d.denied = denied;
+    return d;
+}
+
+d_packet make_AccessAckData(uint64_t size, uint64_t source, bool denied,
+    uint64_t address, std::vector <char> &data) {
+    d_packet d;
+    d.opcode = TL_D_AccessAckData;
+    d.param = 0;
+    d.size = size;
+    d.source = source;
+    d.address = address;
+    d.data = data;
+    d.corrupt = denied;
+    d.denied = denied;
+    return d;
+}
+
+d_packet make_HintAck(uint64_t size, uint64_t source, bool denied) {
+    d_packet d;
+    d.opcode = TL_D_HintAck;
+    d.param = 0;
+    d.size = size;
+    d.source = source;
+    d.address = 0;
+    d.corrupt = false;
+    d.denied = denied;
+    return d;
+}
 
 #endif

@@ -48,7 +48,7 @@ private:
     void input_a(tilelink_ref<A_WIDTH, W_WIDTH, O_WIDTH, Z_WIDTH> &pin) {
         if (pin.a_valid && pin.a_ready) { // a fire
             switch (pin.a_bits_opcode) {
-                case TL_A_PutFullData, TL_A_PutPartialData: {
+                case TL_A_PutFullData: case TL_A_PutPartialData: {
                     cur_a.opcode = pin.a_bits_opcode;
                     cur_a.param = pin.a_bits_param;
                     cur_a.size = pin.a_bits_size;
@@ -56,20 +56,20 @@ private:
                     cur_a.address = pin.a_bits_address;
                     cur_a.corrupt = pin.a_bits_corrupt;
 
-                    int end = std::min(W_WIDTH, cur_d.address % W_WIDTH + pin.d_bits_size) - cur_d.address % W_WIDTH;
+                    int end = std::min(W_WIDTH, cur_a.address % W_WIDTH + pin.a_bits_size) - cur_a.address % W_WIDTH;
                     for (int i = cur_a.address % W_WIDTH; i < end; i++) {
                         cur_a.data.push_back(((char*)(&pin.a_bits_data))[i]);
                         cur_a.mask.push_back( ( (((char*)(&pin.a_bits_mask))[i/8]) & (1 << (i % 8)) ) ? true : false);
                     }
 
-                    if (cur_a.data.size() == 1 << cur_a.a_bits_size) {
+                    if (cur_a.data.size() == 1 << pin.a_bits_size) {
                         a_queue.push(cur_a);
                         cur_a.data.clear();
                         cur_a.mask.clear();
                     }
                     break;
                 }
-                case TL_A_ArithmeticData, TL_A_LogicalData: {
+                case TL_A_ArithmeticData: case TL_A_LogicalData: {
                     cur_a.opcode    = pin.a_bits_opcode;
                     cur_a.param     = pin.a_bits_param;
                     cur_a.size      = pin.a_bits_size;
@@ -77,7 +77,7 @@ private:
                     cur_a.address   = pin.a_bits_address;
                     cur_a.corrupt   = pin.a_bits_corrupt;
 
-                    int end = std::min(W_WIDTH, cur_d.address % W_WIDTH + pin.d_bits_size) - cur_d.address % W_WIDTH;
+                    int end = std::min(W_WIDTH, cur_a.address % W_WIDTH + pin.d_bits_size) - cur_a.address % W_WIDTH;
                     for (int i = cur_a.address % W_WIDTH; i < end; i++) {
                         cur_a.data.push_back(((char*)(&pin.a_bits_data))[i]);
                         cur_a.mask.push_back( ( (((char*)(&pin.a_bits_mask))[i/8]) & (1 << (i % 8)) ) ? true : false);
@@ -166,12 +166,14 @@ private:
     void a_packet_process(a_packet a) {
         switch (a.opcode) {
             case TL_A_PutFullData: {
-                do_write(a.address, 1 << a.size, a.data.data());
+                bool ok = do_write(a.address, 1 << a.size, a.data);
+                d_queue.push(make_AccessAck(a.size, a.source, ok));
                 break;
             }
             case TL_A_PutPartialData: {
                 // TODO: merge
-                do_write_with_mask(a.address, 1 << a.size, a.data, a.mask);
+                bool ok = do_write_with_mask(a.address, 1 << a.size, a.data, a.mask);
+                d_queue.push(make_AccessAck(a.size, a.source, ok));
                 break;
             }
             case TL_A_ArithmeticData: TL_A_LogicalData: {
@@ -180,30 +182,13 @@ private:
                 break;
             }
             case TL_A_Get: {
-                uint8_t buffer[1 << a.size];
-                do_read(a.address, 1 << a.size, buffer);
-                d_packet d;
-                d.opcode = TL_D_AccessAckData;
-                d.param = a.param;
-                d.size = a.size;
-                d.source = a.source;
-                d.corrupt = a.corrupt;
-                d.address = a.address;
-                for (int i = 0; i < 1 << a.size; i++) {
-                    d.data.push_back(buffer[i]);
-                }
-                d_queue.push(d);
+                std::vector<char> buffer = std::vector<char>(1 << a.size);
+                bool ok = do_read(a.address, 1 << a.size, reinterpret_cast<unsigned char*>(buffer.data()));
+                d_queue.push(make_AccessAckData(a.size, a.source, ok, a.address, buffer));
                 break;
             }
             case TL_A_Intent: {
-                d_packet d;
-                d.opcode = TL_D_AccessAck;
-                d.param = a.param;
-                d.size = a.size;
-                d.source = a.source;
-                d.corrupt = a.corrupt;
-                d.address = a.address;
-                d_queue.push(d);
+                d_queue.push(make_HintAck(a.size, a.source, a.corrupt));
                 break;
             }
             default: assert(false);
