@@ -49,14 +49,14 @@ private:
         if (pin.a_valid && pin.a_ready) { // a fire
             switch (pin.a_bits_opcode) {
                 case TL_A_PutFullData: case TL_A_PutPartialData: {
-                    cur_a.opcode = pin.a_bits_opcode;
+                    cur_a.opcode = static_cast<opcode_a>(pin.a_bits_opcode);
                     cur_a.param = pin.a_bits_param;
                     cur_a.size = pin.a_bits_size;
                     cur_a.source = pin.a_bits_source;
                     cur_a.address = pin.a_bits_address;
                     cur_a.corrupt = pin.a_bits_corrupt;
 
-                    int end = std::min(W_WIDTH, cur_a.address % W_WIDTH + pin.a_bits_size) - cur_a.address % W_WIDTH;
+                    int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_a.address % W_WIDTH + pin.a_bits_size) - cur_a.address % W_WIDTH;
                     for (int i = cur_a.address % W_WIDTH; i < end; i++) {
                         cur_a.data.push_back(((char*)(&pin.a_bits_data))[i]);
                         cur_a.mask.push_back( ( (((char*)(&pin.a_bits_mask))[i/8]) & (1 << (i % 8)) ) ? true : false);
@@ -70,14 +70,14 @@ private:
                     break;
                 }
                 case TL_A_ArithmeticData: case TL_A_LogicalData: {
-                    cur_a.opcode    = pin.a_bits_opcode;
+                    cur_a.opcode    = static_cast<opcode_a>(pin.a_bits_opcode);
                     cur_a.param     = pin.a_bits_param;
                     cur_a.size      = pin.a_bits_size;
                     cur_a.source    = pin.a_bits_source;
                     cur_a.address   = pin.a_bits_address;
                     cur_a.corrupt   = pin.a_bits_corrupt;
 
-                    int end = std::min(W_WIDTH, cur_a.address % W_WIDTH + pin.d_bits_size) - cur_a.address % W_WIDTH;
+                    int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_a.address % W_WIDTH + pin.d_bits_size) - cur_a.address % W_WIDTH;
                     for (int i = cur_a.address % W_WIDTH; i < end; i++) {
                         cur_a.data.push_back(((char*)(&pin.a_bits_data))[i]);
                         cur_a.mask.push_back( ( (((char*)(&pin.a_bits_mask))[i/8]) & (1 << (i % 8)) ) ? true : false);
@@ -91,7 +91,7 @@ private:
                     break;
                 }
                 case TL_A_Get: {
-                    cur_a.opcode = pin.a_bits_opcode;
+                    cur_a.opcode = TL_A_Get;
                     cur_a.param = pin.a_bits_param;
                     cur_a.size = pin.a_bits_size;
                     cur_a.source = pin.a_bits_source;
@@ -101,7 +101,7 @@ private:
                     break;
                 }
                 case TL_A_Intent: {
-                    cur_a.opcode = pin.a_bits_opcode;
+                    cur_a.opcode = TL_A_Intent;
                     cur_a.param = pin.a_bits_param;
                     cur_a.size = pin.a_bits_size;
                     cur_a.source = pin.a_bits_source;
@@ -145,7 +145,7 @@ private:
             pin.d_bits_denied = cur_d.denied;
 
             if (cur_d.opcode == TL_D_AccessAckData) {
-                int end = std::min(W_WIDTH, cur_d.address % W_WIDTH + pin.d_bits_size) - cur_d.address % W_WIDTH;
+                int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_d.address % W_WIDTH + pin.d_bits_size) - cur_d.address % W_WIDTH;
                 for (int i = cur_a.address % W_WIDTH; i < end; i++) {
                     ((char*)(&pin.d_bits_data))[i] = cur_d.data[d_index++];
                     d_index++;
