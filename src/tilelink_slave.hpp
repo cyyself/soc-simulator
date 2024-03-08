@@ -58,8 +58,8 @@ private:
 
                     int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_a.address % W_WIDTH + pin.a_bits_size) - cur_a.address % W_WIDTH;
                     for (int i = cur_a.address % W_WIDTH; i < end; i++) {
-                        cur_a.data.push_back(((char*)(&pin.a_bits_data))[i]);
-                        cur_a.mask.push_back( ( (((char*)(&pin.a_bits_mask))[i/8]) & (1 << (i % 8)) ) ? true : false);
+                        cur_a.data.push_back((reinterpret_cast<char*>(&pin.a_bits_data))[i]);
+                        cur_a.mask.push_back( ( ((reinterpret_cast<char*>(&pin.a_bits_mask))[i/8]) & (1 << (i % 8)) ) ? true : false);
                     }
 
                     if (cur_a.data.size() == 1 << pin.a_bits_size) {
@@ -79,8 +79,8 @@ private:
 
                     int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_a.address % W_WIDTH + pin.d_bits_size) - cur_a.address % W_WIDTH;
                     for (int i = cur_a.address % W_WIDTH; i < end; i++) {
-                        cur_a.data.push_back(((char*)(&pin.a_bits_data))[i]);
-                        cur_a.mask.push_back( ( (((char*)(&pin.a_bits_mask))[i/8]) & (1 << (i % 8)) ) ? true : false);
+                        cur_a.data.push_back(( reinterpret_cast<char*>(&pin.a_bits_data))[i]);
+                        cur_a.mask.push_back( ( ((reinterpret_cast<char*>(&pin.a_bits_mask))[i/8]) & (1 << (i % 8)) ) ? true : false);
                     }
 
                     if (cur_a.data.size() == 1 << cur_a.size) {
@@ -126,7 +126,7 @@ private:
                 }
                 else {
                     for (int i = 0; i < W_WIDTH; i++) { // burst transaction always aligned to W_WIDTH
-                        ((char*)(&pin.d_bits_data))[i] = cur_d.data[d_index++];
+                        (reinterpret_cast<char*>(&pin.d_bits_data))[i] = cur_d.data[d_index++];
                         d_index++;
                     }
                 }
@@ -147,7 +147,7 @@ private:
             if (cur_d.opcode == TL_D_AccessAckData) {
                 int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_d.address % W_WIDTH + pin.d_bits_size) - cur_d.address % W_WIDTH;
                 for (int i = cur_a.address % W_WIDTH; i < end; i++) {
-                    ((char*)(&pin.d_bits_data))[i] = cur_d.data[d_index++];
+                    (reinterpret_cast<char*>(&pin.d_bits_data))[i] = cur_d.data[d_index++];
                     d_index++;
                 }
             }
@@ -208,14 +208,14 @@ private:
             }
             else {
                 if (l < r) {
-                    res &= do_write(start_addr + l, r - l, (unsigned char*)&data.data()[l]);
+                    res &= do_write(start_addr + l, r - l, &reinterpret_cast<unsigned char*>(data.data())[l]);
                 }
                 l = i + 1;
             }
         }
 
         if (l < r) {
-            res &= do_write(start_addr + l, r - l, (unsigned char*)&data.data()[l]);
+            res &= do_write(start_addr + l, r - l, &reinterpret_cast<unsigned char*>(data.data())[l]);
         }
 
         return res;
