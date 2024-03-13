@@ -57,7 +57,7 @@ private:
                     cur_a.address = pin.a_bits_address;
                     cur_a.corrupt = pin.a_bits_corrupt;
 
-                    int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_a.address % W_WIDTH + (1<<pin.a_bits_size) ) - cur_a.address % W_WIDTH;
+                    int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_a.address % W_WIDTH + (1<<pin.a_bits_size) );
                     for (int i = cur_a.address % W_WIDTH; i < end; i++) {
                         cur_a.data.push_back((reinterpret_cast<char*>(&pin.a_bits_data))[i]);
                         cur_a.mask.push_back( ( ((reinterpret_cast<char*>(&pin.a_bits_mask))[i/8]) & (1 << (i % 8)) ) ? true : false);
@@ -78,7 +78,7 @@ private:
                     cur_a.address   = pin.a_bits_address;
                     cur_a.corrupt   = pin.a_bits_corrupt;
 
-                    int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_a.address % W_WIDTH + (1<<pin.d_bits_size)) - cur_a.address % W_WIDTH;
+                    int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_a.address % W_WIDTH + (1<<pin.d_bits_size));
                     for (int i = cur_a.address % W_WIDTH; i < end; i++) {
                         cur_a.data.push_back(( reinterpret_cast<char*>(&pin.a_bits_data))[i]);
                         cur_a.mask.push_back( ( ((reinterpret_cast<char*>(&pin.a_bits_mask))[i/8]) & (1 << (i % 8)) ) ? true : false);
@@ -146,7 +146,7 @@ private:
             pin.d_bits_denied = cur_d.denied;
 
             if (cur_d.opcode == TL_D_AccessAckData) {
-                int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_d.address % W_WIDTH + (1<<pin.d_bits_size)) - cur_d.address % W_WIDTH;
+                int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_d.address % W_WIDTH + (1<<pin.d_bits_size));
                 for (int i = cur_a.address % W_WIDTH; i < end; i++) {
                     (reinterpret_cast<char*>(&pin.d_bits_data))[i] = cur_d.data[d_index++];
                 }
