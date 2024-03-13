@@ -99,7 +99,7 @@ void connect_wire(tilelink_ptr<30, 8, 16, 3> &scalar_ptr, tilelink_ptr<29, 8, 2,
 bool running = true;
 uint64_t max_cycle = 0;
 char *memory_path = NULL;
-bool open_trace = false;
+char *fst_file = NULL;
 
 void parse_args(int argc, char** argv) {
     for (int i=1;i+1<argc;i++) {
@@ -110,7 +110,8 @@ void parse_args(int argc, char** argv) {
             memory_path = argv[i+1];
             i++;
         } else if (strcmp(argv[i], "-trace") == 0) {
-            open_trace = true;
+            fst_file = argv[i+1];
+            i++;
         }
     }
 }
@@ -121,11 +122,11 @@ int main(int argc, char** argv, char** env) {
     VT1Subsystem *top = new VT1Subsystem;
 #ifdef ENABLE_TRACE
     VerilatedFstC fst;
-    if (open_trace) {
+    if (fst_file) {
         Verilated::traceEverOn(true);
         // connect fst for trace
         top->trace(&fst,0);
-        fst.open("trace.fst");
+        fst.open(fst_file);
     }
 #endif
     tilelink_ptr <30, 8, 16, 3> mem_ptr;
@@ -223,11 +224,11 @@ int main(int argc, char** argv, char** env) {
         }
         top->eval();
 #ifdef ENABLE_TRACE
-        if (open_trace) fst.dump(ticks);
+        if (fst_file) fst.dump(ticks);
 #endif
     }
 #ifdef ENABLE_TRACE
-    if (open_trace) fst.close();
+    if (fst_file) fst.close();
 #endif
     top->final();
     return 0;
