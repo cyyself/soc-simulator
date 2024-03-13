@@ -97,17 +97,36 @@ void connect_wire(tilelink_ptr<30, 8, 16, 3> &scalar_ptr, tilelink_ptr<29, 8, 2,
 }
 
 bool running = true;
+uint64_t max_cycle = 0;
+char *memory_path = NULL;
+bool open_trace = false;
+
+void parse_args(int argc, char** argv) {
+    for (int i=1;i+1<argc;i++) {
+        if (strcmp(argv[i], "-cycle") == 0) {
+            max_cycle = atoll(argv[i+1]);
+            i++;
+        } else if (strcmp(argv[i], "-init") == 0) {
+            memory_path = argv[i+1];
+            i++;
+        } else if (strcmp(argv[i], "-trace") == 0) {
+            open_trace = true;
+        }
+    }
+}
 
 int main(int argc, char** argv, char** env) {
     Verilated::commandArgs(argc, argv);
+    parse_args(argc, argv);
     VT1Subsystem *top = new VT1Subsystem;
 #ifdef ENABLE_TRACE
-    Verilated::traceEverOn(true);
-    // fst
     VerilatedFstC fst;
-    // connect fst for trace
-    top->trace(&fst,0);
-    fst.open("trace.fst");
+    if (open_trace) {
+        Verilated::traceEverOn(true);
+        // connect fst for trace
+        top->trace(&fst,0);
+        fst.open("trace.fst");
+    }
 #endif
     tilelink_ptr <30, 8, 16, 3> mem_ptr;
     tilelink_ptr <29, 8, 2, 3> mmio_ptr;
@@ -142,11 +161,10 @@ int main(int argc, char** argv, char** env) {
     tilelink_xbar<32, 8, 15, 3> vector_xbar[12];
 
     // scarlar memory
-    char *memory_path = argc >= 2 ? argv[1] : NULL;
     mmio_mem scarlar_mem(512*1024*1024);
     mem_xbar.add_dev(0x20000000, 0x20000000, &scarlar_mem);
     if (memory_path) scarlar_mem.load_binary(0x0, memory_path);
-    else printf("no init file\n");
+    else fprintf(stderr, "Warning: no init memory\n");
 
     // uart
     uartlite uart;
@@ -179,7 +197,7 @@ int main(int argc, char** argv, char** env) {
     top->reset_vector_0 = 0x20000000;
     uint64_t ticks = 0;
 
-    while (!Verilated::gotFinish() && ticks < 10000 && running) {
+    while (!Verilated::gotFinish() && (max_cycle == 0 || ticks < max_cycle) && running) {
         top->clock_0_clock = !top->clock_0_clock;
         if (ticks++ == 9) top->clock_0_reset = 0;
         if (top->clock_0_clock && !top->clock_0_reset) {
@@ -205,11 +223,11 @@ int main(int argc, char** argv, char** env) {
         }
         top->eval();
 #ifdef ENABLE_TRACE
-        fst.dump(ticks);
+        if (open_trace) fst.dump(ticks);
 #endif
     }
 #ifdef ENABLE_TRACE
-    fst.close();
+    if (open_trace) fst.close();
 #endif
     top->final();
     return 0;
