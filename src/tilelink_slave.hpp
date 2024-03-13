@@ -29,6 +29,7 @@ public:
 
     void tick(tilelink_ref<A_WIDTH, W_WIDTH, O_WIDTH, Z_WIDTH> &tl) {
         input_a(tl);
+        transaction_process();
         output_d(tl);
     }
 
@@ -56,7 +57,7 @@ private:
                     cur_a.address = pin.a_bits_address;
                     cur_a.corrupt = pin.a_bits_corrupt;
 
-                    int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_a.address % W_WIDTH + pin.a_bits_size) - cur_a.address % W_WIDTH;
+                    int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_a.address % W_WIDTH + (1<<pin.a_bits_size) ) - cur_a.address % W_WIDTH;
                     for (int i = cur_a.address % W_WIDTH; i < end; i++) {
                         cur_a.data.push_back((reinterpret_cast<char*>(&pin.a_bits_data))[i]);
                         cur_a.mask.push_back( ( ((reinterpret_cast<char*>(&pin.a_bits_mask))[i/8]) & (1 << (i % 8)) ) ? true : false);
@@ -77,7 +78,7 @@ private:
                     cur_a.address   = pin.a_bits_address;
                     cur_a.corrupt   = pin.a_bits_corrupt;
 
-                    int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_a.address % W_WIDTH + pin.d_bits_size) - cur_a.address % W_WIDTH;
+                    int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_a.address % W_WIDTH + (1<<pin.d_bits_size)) - cur_a.address % W_WIDTH;
                     for (int i = cur_a.address % W_WIDTH; i < end; i++) {
                         cur_a.data.push_back(( reinterpret_cast<char*>(&pin.a_bits_data))[i]);
                         cur_a.mask.push_back( ( ((reinterpret_cast<char*>(&pin.a_bits_mask))[i/8]) & (1 << (i % 8)) ) ? true : false);
@@ -120,7 +121,7 @@ private:
         if (d_index != -1) {
             if (pin.d_ready) {
                 // next beat in a burst
-                if (d_index == cur_d.size || cur_d.opcode != TL_D_AccessAckData) {
+                if (d_index == (1<<cur_d.size) || cur_d.opcode != TL_D_AccessAckData) {
                     // here is the last transation, stop
                     // if there is a new transaction, it will be solved in the next if
                     d_index = -1;
@@ -128,7 +129,6 @@ private:
                 else {
                     for (int i = 0; i < W_WIDTH; i++) { // burst transaction always aligned to W_WIDTH
                         (reinterpret_cast<char*>(&pin.d_bits_data))[i] = cur_d.data[d_index++];
-                        d_index++;
                     }
                 }
             }
@@ -146,10 +146,9 @@ private:
             pin.d_bits_denied = cur_d.denied;
 
             if (cur_d.opcode == TL_D_AccessAckData) {
-                int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_d.address % W_WIDTH + pin.d_bits_size) - cur_d.address % W_WIDTH;
+                int end = std::min(static_cast<uint64_t>(W_WIDTH), cur_d.address % W_WIDTH + (1<<pin.d_bits_size)) - cur_d.address % W_WIDTH;
                 for (int i = cur_a.address % W_WIDTH; i < end; i++) {
                     (reinterpret_cast<char*>(&pin.d_bits_data))[i] = cur_d.data[d_index++];
-                    d_index++;
                 }
             }
         }
@@ -168,14 +167,14 @@ private:
     void a_packet_process(a_packet a) {
         switch (a.opcode) {
             case TL_A_PutFullData: {
-                bool ok = do_write(a.address, 1 << a.size, a.data);
-                d_queue.push(make_AccessAck(a.size, a.source, ok));
+                bool ok = do_write(a.address, 1 << a.size, reinterpret_cast<const unsigned char*>(a.data.data()));
+                d_queue.push(make_AccessAck(a.size, a.source, !ok));
                 break;
             }
             case TL_A_PutPartialData: {
                 // TODO: merge
                 bool ok = do_write_with_mask(a.address, 1 << a.size, a.data, a.mask);
-                d_queue.push(make_AccessAck(a.size, a.source, ok));
+                d_queue.push(make_AccessAck(a.size, a.source, !ok));
                 break;
             }
             case TL_A_ArithmeticData: TL_A_LogicalData: {
@@ -186,7 +185,7 @@ private:
             case TL_A_Get: {
                 std::vector<char> buffer = std::vector<char>(1 << a.size);
                 bool ok = do_read(a.address, 1 << a.size, reinterpret_cast<unsigned char*>(buffer.data()));
-                d_queue.push(make_AccessAckData(a.size, a.source, ok, a.address, buffer));
+                d_queue.push(make_AccessAckData(a.size, a.source, !ok, a.address, buffer));
                 break;
             }
             case TL_A_Intent: {
