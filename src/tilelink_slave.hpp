@@ -2,6 +2,7 @@
 #define TILELINK_SLAVE
 
 #include "tilelink.hpp"
+#include "memory_timing_model.hpp"
 
 #include <queue>
 #include <algorithm>
@@ -25,20 +26,75 @@ public:
         cur_a.mask.clear();
         cur_d.data.clear();
         d_index = -1;
+        for (auto &each_model : timing_constrain) {
+            each_model.second->reset();
+        }
     }
 
     void tick(tilelink_ref<A_WIDTH, W_WIDTH, O_WIDTH, Z_WIDTH> &tl) {
         input_a(tl);
         transaction_process();
+        do_timing_constrain();
         output_d(tl);
     }
 
-    // TODO: timing model
+    bool insert_memory_timing_model(uint64_t start_addr, uint64_t length, memory_timing_model* model) {
+        std::pair<uint64_t, uint64_t> addr_range = std::make_pair(start_addr,start_addr+length);
+        if (start_addr % length) return false;
+        // check range
+        auto it = timing_constrain.upper_bound(addr_range);
+        if (it != timing_constrain.end()) {
+            uint64_t l_max = std::max(it->first.first,addr_range.first);
+            uint64_t r_min = std::min(it->first.second,addr_range.second);
+            if (l_max < r_min) return false; // overleap
+        }
+        if (it != timing_constrain.begin()) {
+            it = std::prev(it);
+            uint64_t l_max = std::max(it->first.first,addr_range.first);
+            uint64_t r_min = std::min(it->first.second,addr_range.second);
+            if (l_max < r_min) return false; // overleap
+        }
+        // overleap check pass
+        timing_constrain[addr_range] = model;
+        return true;
+    }
 protected:
     virtual bool do_read (uint64_t start_addr, uint64_t size, uint8_t* buffer) = 0;
     virtual bool do_write(uint64_t start_addr, uint64_t size, const uint8_t* buffer) = 0;
 
 private:
+    // for memory timing constrain {
+    simple_delay_model* delay_model = NULL;
+    //                 addr_start,addr_end
+    std::map < std::pair<uint64_t,uint64_t>, memory_timing_model* > timing_constrain;
+    std::map < int64_t, a_packet > pending_a;
+    int64_t req_id_gen = 0;
+
+    memory_timing_model* find_timing_model(uint64_t start_addr, uint64_t size) {
+        auto it = timing_constrain.upper_bound(std::make_pair(start_addr, ULONG_MAX));
+        if (it == timing_constrain.begin()) return nullptr;
+        it = std::prev(it);
+        if (it->first.first <= start_addr && start_addr + size <= it->first.second) {
+            return it->second;
+        }
+        else return nullptr;
+    }
+
+    void do_timing_constrain() {
+        if (pending_a.empty()) return;
+        for (auto &each_model : timing_constrain) {
+            while (each_model.second->has_finished_req()) {
+                int64_t req_id = each_model.second->get_finished_req_id();
+                if (pending_a.count(req_id)) {
+                    a_packet cur_a = pending_a[req_id];
+                    pending_a.erase(req_id);
+                    a_packet_process(cur_a);
+                }
+            }
+        }
+    }
+    // for memory timing constrain }
+
     std::queue <a_packet> a_queue;
     std::queue <d_packet> d_queue;
 
@@ -156,11 +212,20 @@ private:
     }
 
     void transaction_process() {
-        // TODO: add memory timing model
         while (!a_queue.empty()) {
             a_packet a = a_queue.front();
             a_queue.pop();
-            a_packet_process(a);
+            memory_timing_model* model = find_timing_model(a.address, (1<<a.size));
+            if (model) {
+                // has timing constrain, add to pending list
+                int64_t req_id = req_id_gen++;
+                pending_a[req_id] = a;
+                model->add_req(req_id, a.address, (1<<a.size));
+            }
+            else {
+                // no timing constrain, process directly
+                a_packet_process(a);
+            }
         }
     }
 
