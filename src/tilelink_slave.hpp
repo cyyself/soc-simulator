@@ -10,6 +10,7 @@
 #include <vector>
 #include <queue>
 #include <cassert>
+#include <climits>
 
 template <unsigned int A_WIDTH, unsigned int W_WIDTH = 64,
           unsigned int O_WIDTH = 4, unsigned int Z_WIDTH = 3>
@@ -219,7 +220,9 @@ private:
                 // has timing constrain, add to pending list
                 int64_t req_id = req_id_gen++;
                 pending_a[req_id] = a;
-                model->add_req(req_id, a.address, (1<<a.size));
+                model->add_req(a.address, (1<<a.size),
+                               a.opcode == TL_A_PutFullData ||
+                               a.opcode == TL_A_PutPartialData, req_id);
             }
             else {
                 // no timing constrain, process directly
