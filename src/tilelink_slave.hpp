@@ -64,7 +64,6 @@ protected:
 
 private:
     // for memory timing constrain {
-    simple_delay_model* delay_model = NULL;
     //                 addr_start,addr_end
     std::map < std::pair<uint64_t,uint64_t>, memory_timing_model* > timing_constrain;
     std::map < int64_t, a_packet > pending_a;
