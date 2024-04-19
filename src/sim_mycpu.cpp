@@ -214,7 +214,7 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
     assert( rtl_mmio.add_dev(0x1faf0000,0x10000,& rtl_confreg));
 
     // setup diff memory
-    if (diff_memory_write) rtl_perf_mem.set_diff_mem(cemu_perf_mem.get_mem_ptr());
+    if (diff_memory_write) rtl_perf_mem.set_diff_mem(cemu_perf_mem.get_mem_ptr(), &running);
 
     // connect fst for trace
     top->trace(&fst,0);
@@ -459,7 +459,7 @@ void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
     std::thread *uart_input_thread = new std::thread(uart_input,std::ref(rtl_uart));
 
     // setup diff memory
-    if (diff_memory_write) rtl_dram.set_diff_mem(cemu_dram.get_mem_ptr());
+    if (diff_memory_write) rtl_dram.set_diff_mem(cemu_dram.get_mem_ptr(), &running);
 
     // connect fst for trace
     top->trace(&fst,0);

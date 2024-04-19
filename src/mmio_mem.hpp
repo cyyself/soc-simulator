@@ -7,8 +7,6 @@
 #include <fstream>
 #include <iostream>
 
-extern bool running;
-
 class mmio_mem : public mmio_dev  {
     public:
         mmio_mem(size_t size_bytes) {
@@ -53,7 +51,7 @@ class mmio_mem : public mmio_dev  {
                 memcpy(&mem[start_addr],buffer,size);
                 if (diff_mem_write) {
                     for (int i=0;i<size;i++) if (mem[start_addr+i] != diff_mem[start_addr+i]) {
-                        running = false;
+                        *running = false;
                         printf("Error writeback cache at addr %x\n",start_addr+i);
                     }
                 }
@@ -65,7 +63,7 @@ class mmio_mem : public mmio_dev  {
                     memcpy(&mem[start_addr],buffer,size);
                     if (diff_mem_write) {
                         for (int i=0;i<size;i++) if (mem[start_addr+i] != diff_mem[start_addr+i]) {
-                            running = false;
+                            *running = false;
                             printf("Error writeback cache at addr %x\n",start_addr+i);
                         }
                     }
@@ -95,9 +93,10 @@ class mmio_mem : public mmio_dev  {
         unsigned char *get_mem_ptr() {
             return mem;
         }
-        void set_diff_mem(unsigned char *diff_mem_addr) {
+        void set_diff_mem(unsigned char *diff_mem_addr, bool *_running) {
             diff_mem = diff_mem_addr;
             diff_mem_write = true;
+            running = _running;
         }
     private:
         bool diff_mem_write = false;
@@ -105,6 +104,7 @@ class mmio_mem : public mmio_dev  {
         unsigned char *diff_mem;
         size_t mem_size;
         bool allow_warp = false;
+        bool *running = NULL;
 };
 
 #endif
