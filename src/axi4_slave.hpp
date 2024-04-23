@@ -67,8 +67,8 @@ protected:
     virtual axi_resp do_write(uint64_t start_addr, uint64_t size, const uint8_t* buffer) = 0;
 private:
     // for memory timing constrain {
-    //                 addr_start,addr_end
     simple_delay_model* delay_model = NULL;
+    //                 addr_start,addr_end
     std::map < std::pair<uint64_t,uint64_t>, memory_timing_model* > timing_constrain;
     std::map < int64_t, ar_packet > pending_ar;
     std::map < int64_t, aw_w_packet > pending_aw_w;
