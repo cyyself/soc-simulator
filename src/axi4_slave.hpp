@@ -11,13 +11,14 @@
 #include <vector>
 #include <queue>
 #include <climits>
+#include <bit>
 
 template <unsigned int A_WIDTH = 64, unsigned int D_WIDTH = 64, unsigned int ID_WIDTH = 4>
 class axi4_slave {
 public:
     axi4_slave() {
     }
-    axi4_slave(int delay) {
+    axi4_slave(int delay):axi4_slave() {
         delay_model = new simple_delay_model(delay);
         assert(insert_memory_timing_model(0, ULONG_MAX, delay_model));
     }
@@ -113,6 +114,7 @@ private:
     r_packet cur_r;
     w_packet cur_w;
     int r_index = -1;
+    uint8_t d_width_log2 = std::bit_width(D_WIDTH) - 1;
     void input_transaction(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
         // TODO: add memory timing model and support bit endian host ISA
         // input ar
@@ -122,6 +124,7 @@ private:
             tmp.addr = pin.araddr;
             tmp.len = pin.arlen;
             tmp.size = pin.arsize;
+            tmp.d_width = d_width_log2;
             tmp.burst = static_cast<axi_burst_type>(pin.arburst);
             ar.push(tmp);
         }
@@ -132,11 +135,13 @@ private:
             tmp.addr = pin.awaddr;
             tmp.len = pin.awlen;
             tmp.size = pin.awsize;
+            tmp.d_width = d_width_log2;
             tmp.burst = static_cast<axi_burst_type>(pin.awburst);
             aw.push(tmp);
         }
         // input w
         if (pin.wvalid && pin.wready) { // w.fire
+            cur_w.d_width = d_width_log2;
             for (int i = 0; i < D_WIDTH / 8; i++) {
                 cur_w.data.push_back(((char*)(&pin.wdata))[i]);
                 cur_w.strb.push_back( ( (((char*)(&pin.wstrb))[i/8]) & (1 << (i % 8)) ) ? true : false);
@@ -163,7 +168,7 @@ private:
                     r_index = -1;
                 }
                 else {
-                    for (int i = 0; i < D_WIDTH / 8; i++) {
+                    for (int i = 0; i < (1<<cur_r.d_width) / 8; i++) {
                         ((char*)&(pin.rdata))[i] = cur_r.data[r_index++];
                     }
                     pin.rlast = (r_index == cur_r.data.size());
@@ -175,7 +180,7 @@ private:
             r.pop();
             r_index = 0;
             pin.rid = cur_r.id;
-            for (int i = 0; i < D_WIDTH / 8; i++) {
+            for (int i = 0; i < (1<<cur_r.d_width) / 8; i++) {
                 ((char*)&(pin.rdata))[i] = cur_r.data[r_index++];
             }
             pin.rlast = (r_index == cur_r.data.size());
@@ -233,16 +238,16 @@ private:
         }
     }
     void ar_process(ar_packet &cur_ar) {
-        std::vector<char> tmp((D_WIDTH/8)*(cur_ar.len+1), 0);
+        std::vector<char> tmp(((1<<cur_ar.d_width)/8)*(cur_ar.len+1), 0);
         switch (cur_ar.burst) {
             case BURST_FIXED: {
                 uint64_t cur_addr_l = cur_ar.addr;
                 uint64_t cur_addr_r = cur_addr_l + (1 << cur_ar.size) - cur_addr_l % (1 << cur_ar.size);
                 int res = RESP_OKEY;
                 for (int i=0;i<cur_ar.len+1;i++) {
-                    res |= do_read(cur_addr_l, cur_addr_r - cur_addr_l, (unsigned char*)&tmp.data()[(D_WIDTH / 8) * i + cur_addr_l % (D_WIDTH / 8)]);
+                    res |= do_read(cur_addr_l, cur_addr_r - cur_addr_l, (unsigned char*)&tmp.data()[((1<<cur_ar.d_width) / 8) * i + cur_addr_l % ((1<<cur_ar.d_width) / 8)]);
                 }
-                r.push(r_packet(static_cast<axi_resp>(res), cur_ar.id, tmp));
+                r.push(r_packet(static_cast<axi_resp>(res), cur_ar.id, tmp, cur_ar.d_width));
                 break;
             }
             case BURST_INCR: {
@@ -250,10 +255,10 @@ private:
                 int res = RESP_OKEY;
                 for (int i=0;i<cur_ar.len+1;i++) {
                     uint64_t cur_addr_r = cur_addr_l + (1 << cur_ar.size) - cur_addr_l % (1 << cur_ar.size);
-                    res |= do_read(cur_addr_l, cur_addr_r - cur_addr_l, (unsigned char*)&tmp.data()[(D_WIDTH / 8) * i + cur_addr_l % (D_WIDTH / 8)]);
+                    res |= do_read(cur_addr_l, cur_addr_r - cur_addr_l, (unsigned char*)&tmp.data()[((1<<cur_ar.d_width) / 8) * i + cur_addr_l % ((1<<cur_ar.d_width) / 8)]);
                     cur_addr_l = cur_addr_r;
                 }
-                r.push(r_packet(static_cast<axi_resp>(res), cur_ar.id, tmp));
+                r.push(r_packet(static_cast<axi_resp>(res), cur_ar.id, tmp, cur_ar.d_width));
                 break;
             }
             case BURST_WRAP: {
@@ -264,37 +269,38 @@ private:
                         uint64_t cur_addr = cur_ar.addr;
                         int res = RESP_OKEY;
                         for (int i=0;i<cur_ar.len+1;i++) {
-                            res |= do_read(cur_addr, (1 << cur_ar.size), (unsigned char*)&tmp.data()[(D_WIDTH / 8) * i + cur_addr % (D_WIDTH / 8)]);
+                            res |= do_read(cur_addr, (1 << cur_ar.size), (unsigned char*)&tmp.data()[((1<<cur_ar.d_width) / 8) * i + cur_addr % ((1<<cur_ar.d_width) / 8)]);
                             cur_addr += (1 << cur_ar.size);
                             if (cur_addr == end_addr) cur_addr = start_addr;
                         }
-                        r.push(r_packet(static_cast<axi_resp>(res), cur_ar.id, tmp));
+                        r.push(r_packet(static_cast<axi_resp>(res), cur_ar.id, tmp, cur_ar.d_width));
                     }
                     else {
-                        r.push(r_packet(RESP_DECERR, cur_ar.id, tmp));
+                        r.push(r_packet(RESP_DECERR, cur_ar.id, tmp, cur_ar.d_width));
                     }
                 }
                 else {
-                    r.push(r_packet(RESP_DECERR, cur_ar.id, tmp));
+                    r.push(r_packet(RESP_DECERR, cur_ar.id, tmp, cur_ar.d_width));
                 }
                 break;
             }
             default: {
-                r.push(r_packet(RESP_DECERR, cur_ar.id, tmp));
+                r.push(r_packet(RESP_DECERR, cur_ar.id, tmp, cur_ar.d_width));
                 break;
             }
         }
     }
     void aw_process(aw_packet &cur_aw, w_packet &cur_w) {
         // check the length first
-        if ( (cur_aw.len + 1) * (D_WIDTH / 8) == cur_w.data.size() && (1 << cur_aw.size) <= (D_WIDTH / 8) ) {
+        assert(cur_aw.d_width == cur_w.d_width);
+        if ( (cur_aw.len + 1) * ((1<<cur_aw.d_width) / 8) == cur_w.data.size() && (1 << cur_aw.size) <= ((1<<cur_aw.d_width) / 8) ) {
             switch (cur_aw.burst) {
                 case BURST_FIXED: {
                     uint64_t cur_addr_l = cur_aw.addr;
                     uint64_t cur_addr_r = cur_addr_l + (1 << cur_aw.size) - cur_addr_l % (1 << cur_aw.size);
                     int res = RESP_OKEY;
                     for (int i=0;i<cur_aw.len+1;i++) {
-                        res |= do_write_with_strobe(cur_addr_l, (cur_addr_l % (D_WIDTH / 8)) + (D_WIDTH / 8) * i, 
+                        res |= do_write_with_strobe(cur_addr_l, (cur_addr_l % ((1<<cur_aw.d_width) / 8)) + ((1<<cur_aw.d_width) / 8) * i, 
                                                     cur_addr_r - cur_addr_l, cur_w.data, cur_w.strb);
                     }
                     b.push(b_packet(static_cast<axi_resp>(res), cur_aw.id));
@@ -305,7 +311,7 @@ private:
                     int res = RESP_OKEY;
                     for (int i=0;i<cur_aw.len+1;i++) {
                         uint64_t cur_addr_r = cur_addr_l + (1 << cur_aw.size) - cur_addr_l % (1 << cur_aw.size);
-                        res |= do_write_with_strobe(cur_addr_l, (cur_addr_l % (D_WIDTH / 8)) + (D_WIDTH / 8) * i, 
+                        res |= do_write_with_strobe(cur_addr_l, (cur_addr_l % ((1<<cur_aw.d_width) / 8)) + ((1<<cur_aw.d_width) / 8) * i, 
                                                     cur_addr_r - cur_addr_l, cur_w.data, cur_w.strb);
                         cur_addr_l = cur_addr_r;
                     }
@@ -320,7 +326,7 @@ private:
                             uint64_t cur_addr = cur_aw.addr;
                             int res = RESP_OKEY;
                             for (int i=0;i<cur_aw.len+1;i++) {
-                                res |= do_write_with_strobe(cur_addr, (cur_addr % (D_WIDTH / 8)) + (D_WIDTH / 8) * i, 
+                                res |= do_write_with_strobe(cur_addr, (cur_addr % ((1<<cur_aw.d_width) / 8)) + ((1<<cur_aw.d_width) / 8) * i, 
                                                             (1 << cur_aw.size), cur_w.data, cur_w.strb);
                                 cur_addr += (1 << cur_aw.size);
                                 if (cur_addr == end_addr) cur_addr = start_addr;

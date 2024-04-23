@@ -297,13 +297,15 @@ struct ar_packet {
     uint64_t addr;
     uint8_t len;
     uint8_t size;
+    uint8_t d_width; // d_width in log2
     axi_burst_type burst;
     ar_packet() {
+        id = 0;
         addr = 0;
         len = 0;
         size = 0;
+        d_width = 0;
         burst = BURST_FIXED;
-        id = 0;
     }
 };
 
@@ -312,13 +314,15 @@ struct aw_packet {
     uint64_t addr;
     uint8_t len;
     uint8_t size;
+    uint8_t d_width; // d_width in log2
     axi_burst_type burst;
     aw_packet() {
+        id = 0;
         addr = 0;
         len = 0;
         size = 0;
+        d_width = 0;
         burst = BURST_FIXED;
-        id = 0;
     }
 };
 
@@ -345,10 +349,12 @@ struct aw_packet {
 
 struct w_packet { // entire packet
     // the size of data and strb should always aligned to the width of the data bus
+    uint8_t d_width; // d_width in log2
     std::vector <char> data;
     std::vector <bool> strb;
     w_packet() { }
-    w_packet(std::vector <char> _data, std::vector <bool> _strb) {
+    w_packet(std::vector <char> _data, std::vector <bool> _strb, uint8_t _d_width) {
+        d_width = _d_width;
         data = _data;
         strb = _strb;
     }
@@ -366,6 +372,7 @@ struct aw_w_packet {
 
 struct r_packet { // entire packet
     axi_resp resp;
+    uint8_t d_width; // d_width in log2
     uint64_t id;
     // the size of data and strb should always aligned to the width of the data bus
     std::vector <char> data;
@@ -373,8 +380,9 @@ struct r_packet { // entire packet
         resp = RESP_OKEY;
         id = 0;
     }
-    r_packet(axi_resp _resp, uint64_t _id, std::vector <char> _data) {
+    r_packet(axi_resp _resp, uint64_t _id, std::vector <char> _data, uint8_t _d_width) {
         resp = _resp;
+        d_width = _d_width;
         id = _id;
         data = _data;
     }
