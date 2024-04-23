@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 #include <queue>
+#include <climits>
 
 template <unsigned int A_WIDTH = 64, unsigned int D_WIDTH = 64, unsigned int ID_WIDTH = 4>
 class axi4_slave {
