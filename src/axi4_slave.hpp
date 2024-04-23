@@ -13,7 +13,8 @@
 #include <climits>
 #include <bit>
 
-template <unsigned int A_WIDTH = 64, unsigned int D_WIDTH = 64, unsigned int ID_WIDTH = 4>
+template <unsigned int A_WIDTH = 64, unsigned int D_WIDTH = 64,
+          unsigned int ID_WIDTH = 4>
 class axi4_slave {
 public:
     axi4_slave() {
@@ -42,8 +43,10 @@ public:
         do_timing_constrain();
         output_transaction(pin);
     }
-    bool insert_memory_timing_model(uint64_t start_addr, uint64_t length, memory_timing_model* model) {
-        std::pair<uint64_t, uint64_t> addr_range = std::make_pair(start_addr,start_addr+length);
+    bool insert_memory_timing_model(uint64_t start_addr, uint64_t length,
+                                    memory_timing_model* model) {
+        std::pair<uint64_t, uint64_t> addr_range(start_addr,
+                                                 start_addr+length);
         if (start_addr % length) return false;
         // check range
         auto it = timing_constrain.upper_bound(addr_range);
@@ -63,21 +66,27 @@ public:
         return true;
     }
 protected:
-    virtual axi_resp do_read (uint64_t start_addr, uint64_t size, uint8_t* buffer) = 0;
-    virtual axi_resp do_write(uint64_t start_addr, uint64_t size, const uint8_t* buffer) = 0;
+    virtual axi_resp do_read (uint64_t start_addr, uint64_t size,
+                              uint8_t* buffer) = 0;
+    virtual axi_resp do_write(uint64_t start_addr, uint64_t size,
+                              const uint8_t* buffer) = 0;
 private:
     // for memory timing constrain {
     simple_delay_model* delay_model = NULL;
     //                 addr_start,addr_end
-    std::map < std::pair<uint64_t,uint64_t>, memory_timing_model* > timing_constrain;
+    std::map < std::pair<uint64_t,uint64_t>,
+               memory_timing_model* > timing_constrain;
     std::map < int64_t, ar_packet > pending_ar;
     std::map < int64_t, aw_w_packet > pending_aw_w;
     int64_t req_id_gen = 0; // +2 everytime, lsb[0]: write else read
-    memory_timing_model* find_timing_model(uint64_t start_addr, uint64_t size) {
-        auto it = timing_constrain.upper_bound(std::make_pair(start_addr, ULONG_MAX));
+    memory_timing_model* find_timing_model(uint64_t start_addr, 
+                                           uint64_t size) {
+        auto it = timing_constrain.upper_bound(std::make_pair(start_addr,
+                                                              ULONG_MAX));
         if (it == timing_constrain.begin()) return nullptr;
         it = std::prev(it);
-        if (it->first.first <= start_addr && start_addr + size <= it->first.second) {
+        if (it->first.first <= start_addr && 
+            start_addr + size <= it->first.second) {
             return it->second;
         }
         else return nullptr;
@@ -144,7 +153,9 @@ private:
             cur_w.d_width = d_width_log2;
             for (int i = 0; i < D_WIDTH / 8; i++) {
                 cur_w.data.push_back(((char*)(&pin.wdata))[i]);
-                cur_w.strb.push_back( ( (((char*)(&pin.wstrb))[i/8]) & (1 << (i % 8)) ) ? true : false);
+                bool cur_strb = ((((char*)(&pin.wstrb))[i/8])&(1<<(i%8))) ?
+                                true : false;
+                cur_w.strb.push_back(cur_strb);
             }
             if (pin.wlast) {
                 w.push(cur_w);
@@ -164,7 +175,8 @@ private:
                 // next
                 if (pin.rlast) {
                     // here is the last transation, stop
-                    // if there is a new transaction, it will be solved in the next if
+                    // if there is a new transaction, it will be solved in
+                    // the next if
                     r_index = -1;
                 }
                 else {
@@ -203,14 +215,16 @@ private:
         while (!ar.empty()) {
             ar_packet cur_ar = ar.front();
             ar.pop();
-            memory_timing_model* model = find_timing_model(cur_ar.addr, (1<<cur_ar.size));
+            int64_t req_size = (1<<cur_ar.size) * (cur_ar.len + 1);
+            memory_timing_model* model = find_timing_model(cur_ar.addr,
+                                                           req_size);
             if (model) {
                 // has timing constrain
                 int64_t req_id = req_id_gen;
                 req_id_gen += 2;
                 if (req_id_gen < 0) req_id_gen = 0;
                 pending_ar[req_id] = cur_ar;
-                model->add_req(cur_ar.addr, (1<<cur_ar.size), false, req_id);
+                model->add_req(cur_ar.addr, req_size, false, req_id);
             }
             else {
                 // no timing constrain
@@ -222,14 +236,16 @@ private:
             aw.pop();
             w_packet cur_w = w.front();
             w.pop();
-            memory_timing_model* model = find_timing_model(cur_aw.addr, (1<<cur_aw.size));
+            int64_t req_size = (1<<cur_aw.size) * (cur_aw.len + 1);
+            memory_timing_model* model = find_timing_model(cur_aw.addr,
+                                                           req_size);
             if (model) {
                 // has timing constrain
                 int64_t req_id = req_id_gen + 1;
                 req_id_gen += 2;
                 if (req_id_gen < 0) req_id_gen = 0;
                 pending_aw_w[req_id] = aw_w_packet(cur_aw, cur_w);
-                model->add_req(cur_aw.addr, (1<<cur_aw.size), true, req_id);
+                model->add_req(cur_aw.addr, req_size, true, req_id);
             }
             else {
                 // no timing constrain
@@ -238,54 +254,79 @@ private:
         }
     }
     void ar_process(ar_packet &cur_ar) {
-        std::vector<char> tmp(((1<<cur_ar.d_width)/8)*(cur_ar.len+1), 0);
+        uint64_t size_burst = (1 << cur_ar.size);
+        int d_width_bytes = (1<<cur_ar.d_width) / 8;
+        int burst_length = cur_ar.len + 1;
+        std::vector<char> tmp(d_width_bytes * burst_length, 0);
         switch (cur_ar.burst) {
             case BURST_FIXED: {
                 uint64_t cur_addr_l = cur_ar.addr;
-                uint64_t cur_addr_r = cur_addr_l + (1 << cur_ar.size) - cur_addr_l % (1 << cur_ar.size);
+                uint64_t cur_addr_r = cur_addr_l + size_burst - 
+                                      cur_addr_l % size_burst;
                 int res = RESP_OKEY;
-                for (int i=0;i<cur_ar.len+1;i++) {
-                    res |= do_read(cur_addr_l, cur_addr_r - cur_addr_l, (unsigned char*)&tmp.data()[((1<<cur_ar.d_width) / 8) * i + cur_addr_l % ((1<<cur_ar.d_width) / 8)]);
+                for (int i=0;i<burst_length;i++) {
+                    int data_pos = d_width_bytes * i + 
+                                   cur_addr_l % d_width_bytes;
+                    res |= do_read(cur_addr_l, cur_addr_r - cur_addr_l,
+                                   (unsigned char*)&tmp.data()[data_pos]);
                 }
-                r.push(r_packet(static_cast<axi_resp>(res), cur_ar.id, tmp, cur_ar.d_width));
+                r.push(r_packet(static_cast<axi_resp>(res), cur_ar.id, tmp,
+                                cur_ar.d_width));
                 break;
             }
             case BURST_INCR: {
                 uint64_t cur_addr_l = cur_ar.addr;
+                uint64_t cur_addr_r = cur_addr_l + size_burst - 
+                                      cur_addr_l % size_burst;
                 int res = RESP_OKEY;
-                for (int i=0;i<cur_ar.len+1;i++) {
-                    uint64_t cur_addr_r = cur_addr_l + (1 << cur_ar.size) - cur_addr_l % (1 << cur_ar.size);
-                    res |= do_read(cur_addr_l, cur_addr_r - cur_addr_l, (unsigned char*)&tmp.data()[((1<<cur_ar.d_width) / 8) * i + cur_addr_l % ((1<<cur_ar.d_width) / 8)]);
+                for (int i=0;i<burst_length;i++) {
+                    int data_pos = d_width_bytes * i +
+                                   cur_addr_l % d_width_bytes;
+                    res |= do_read(cur_addr_l, cur_addr_r - cur_addr_l,
+                                   (unsigned char*)&tmp.data()[data_pos]);
                     cur_addr_l = cur_addr_r;
+                    cur_addr_r += size_burst;
                 }
-                r.push(r_packet(static_cast<axi_resp>(res), cur_ar.id, tmp, cur_ar.d_width));
+                r.push(r_packet(static_cast<axi_resp>(res), cur_ar.id, tmp,
+                                cur_ar.d_width));
                 break;
             }
             case BURST_WRAP: {
-                if (cur_ar.len + 1 == 2 || cur_ar.len + 1 == 4 || cur_ar.len + 1 == 8 || cur_ar.len + 1 == 16) {
-                    if (cur_ar.addr % (1 << cur_ar.size) == 0) {
-                        uint64_t start_addr = cur_ar.addr - cur_ar.addr % ((1 << cur_ar.size) * (cur_ar.len + 1));
-                        uint64_t end_addr = start_addr + ((1 << cur_ar.size) * (cur_ar.len + 1));
+                uint64_t req_size = size_burst * burst_length;
+                if (burst_length == 2 || burst_length == 4 ||
+                    burst_length == 8 || burst_length == 16) {
+                    if (cur_ar.addr % size_burst == 0) {
+                        uint64_t start_addr = cur_ar.addr - 
+                                              cur_ar.addr % req_size;
+                        uint64_t end_addr = start_addr + req_size;
                         uint64_t cur_addr = cur_ar.addr;
                         int res = RESP_OKEY;
                         for (int i=0;i<cur_ar.len+1;i++) {
-                            res |= do_read(cur_addr, (1 << cur_ar.size), (unsigned char*)&tmp.data()[((1<<cur_ar.d_width) / 8) * i + cur_addr % ((1<<cur_ar.d_width) / 8)]);
-                            cur_addr += (1 << cur_ar.size);
-                            if (cur_addr == end_addr) cur_addr = start_addr;
+                            int data_pos = d_width_bytes * i +
+                                           cur_addr % d_width_bytes;
+                            res |= do_read(cur_addr, size_burst,
+                                           (uint8_t*)&tmp.data()[data_pos]);
+                            cur_addr += size_burst;
+                            if (cur_addr == end_addr)
+                                cur_addr = start_addr;
                         }
-                        r.push(r_packet(static_cast<axi_resp>(res), cur_ar.id, tmp, cur_ar.d_width));
+                        r.push(r_packet(static_cast<axi_resp>(res),
+                                        cur_ar.id, tmp, cur_ar.d_width));
                     }
                     else {
-                        r.push(r_packet(RESP_DECERR, cur_ar.id, tmp, cur_ar.d_width));
+                        r.push(r_packet(RESP_DECERR, cur_ar.id, tmp,
+                                        cur_ar.d_width));
                     }
                 }
                 else {
-                    r.push(r_packet(RESP_DECERR, cur_ar.id, tmp, cur_ar.d_width));
+                    r.push(r_packet(RESP_DECERR, cur_ar.id, tmp,
+                                    cur_ar.d_width));
                 }
                 break;
             }
             default: {
-                r.push(r_packet(RESP_DECERR, cur_ar.id, tmp, cur_ar.d_width));
+                r.push(r_packet(RESP_DECERR, cur_ar.id, tmp,
+                                cur_ar.d_width));
                 break;
             }
         }
@@ -293,45 +334,72 @@ private:
     void aw_process(aw_packet &cur_aw, w_packet &cur_w) {
         // check the length first
         assert(cur_aw.d_width == cur_w.d_width);
-        if ( (cur_aw.len + 1) * ((1<<cur_aw.d_width) / 8) == cur_w.data.size() && (1 << cur_aw.size) <= ((1<<cur_aw.d_width) / 8) ) {
+        uint64_t size_burst = (1 << cur_aw.size);
+        int d_width_bytes = (1<<cur_aw.d_width) / 8;
+        int burst_length = cur_aw.len + 1;
+        if ( burst_length * d_width_bytes == cur_w.data.size() &&
+             (1 << cur_aw.size) <= d_width_bytes ) {
             switch (cur_aw.burst) {
                 case BURST_FIXED: {
                     uint64_t cur_addr_l = cur_aw.addr;
-                    uint64_t cur_addr_r = cur_addr_l + (1 << cur_aw.size) - cur_addr_l % (1 << cur_aw.size);
+                    uint64_t cur_addr_r = cur_addr_l + size_burst -
+                                          cur_addr_l % size_burst;
                     int res = RESP_OKEY;
-                    for (int i=0;i<cur_aw.len+1;i++) {
-                        res |= do_write_with_strobe(cur_addr_l, (cur_addr_l % ((1<<cur_aw.d_width) / 8)) + ((1<<cur_aw.d_width) / 8) * i, 
-                                                    cur_addr_r - cur_addr_l, cur_w.data, cur_w.strb);
+                    for (int i=0;i<burst_length;i++) {
+                        uint64_t data_pos = (cur_addr_l % d_width_bytes) +
+                                            d_width_bytes * i;
+                        res |= do_write_with_strobe(cur_addr_l,
+                                                    data_pos, 
+                                                    cur_addr_r-cur_addr_l,
+                                                    cur_w.data,
+                                                    cur_w.strb);
                     }
                     b.push(b_packet(static_cast<axi_resp>(res), cur_aw.id));
                     break;
                 }
                 case BURST_INCR: {
                     uint64_t cur_addr_l = cur_aw.addr;
+                    uint64_t cur_addr_r = cur_addr_l + size_burst -
+                                          cur_addr_l % size_burst;
                     int res = RESP_OKEY;
-                    for (int i=0;i<cur_aw.len+1;i++) {
-                        uint64_t cur_addr_r = cur_addr_l + (1 << cur_aw.size) - cur_addr_l % (1 << cur_aw.size);
-                        res |= do_write_with_strobe(cur_addr_l, (cur_addr_l % ((1<<cur_aw.d_width) / 8)) + ((1<<cur_aw.d_width) / 8) * i, 
-                                                    cur_addr_r - cur_addr_l, cur_w.data, cur_w.strb);
+                    for (int i=0;i<burst_length;i++) {
+                        uint64_t data_pos = (cur_addr_l % d_width_bytes) +
+                                            d_width_bytes * i;
+                        res |= do_write_with_strobe(cur_addr_l,
+                                                    data_pos, 
+                                                    cur_addr_r-cur_addr_l,
+                                                    cur_w.data,
+                                                    cur_w.strb);
                         cur_addr_l = cur_addr_r;
+                        cur_addr_r += size_burst;
                     }
                     b.push(b_packet(static_cast<axi_resp>(res), cur_aw.id));
                     break;
                 }
                 case BURST_WRAP: {
-                    if (cur_aw.len + 1 == 2 || cur_aw.len + 1 == 4 || cur_aw.len + 1 == 8 || cur_aw.len + 1 == 16) {
-                        if (cur_aw.addr % (1 << cur_aw.size) == 0) {
-                            uint64_t start_addr = cur_aw.addr - cur_aw.addr % ((1 << cur_aw.size) * (cur_aw.len + 1));
-                            uint64_t end_addr = start_addr + ((1 << cur_aw.size) * (cur_aw.len + 1));
+                    if (burst_length == 2 || burst_length == 4 ||
+                        burst_length == 8 || burst_length == 16) {
+                        uint64_t req_size = size_burst * burst_length;
+                        if (cur_aw.addr % size_burst == 0) {
+                            uint64_t start_addr = cur_aw.addr -
+                                                  cur_aw.addr % req_size;
+                            uint64_t end_addr = start_addr + req_size;
                             uint64_t cur_addr = cur_aw.addr;
                             int res = RESP_OKEY;
-                            for (int i=0;i<cur_aw.len+1;i++) {
-                                res |= do_write_with_strobe(cur_addr, (cur_addr % ((1<<cur_aw.d_width) / 8)) + ((1<<cur_aw.d_width) / 8) * i, 
-                                                            (1 << cur_aw.size), cur_w.data, cur_w.strb);
-                                cur_addr += (1 << cur_aw.size);
-                                if (cur_addr == end_addr) cur_addr = start_addr;
+                            for (int i=0;i<burst_length;i++) {
+                                uint64_t data_pos = (cur_addr % d_width_bytes) +
+                                                    d_width_bytes * i;
+                                res |= do_write_with_strobe(cur_addr,
+                                                            data_pos, 
+                                                            size_burst,
+                                                            cur_w.data,
+                                                            cur_w.strb);
+                                cur_addr += size_burst;
+                                if (cur_addr == end_addr)
+                                    cur_addr = start_addr;
                             }
-                            b.push(b_packet(static_cast<axi_resp>(res), cur_aw.id));
+                            b.push(b_packet(static_cast<axi_resp>(res),
+                                            cur_aw.id));
                         }
                         else {
                             b.push(b_packet(RESP_DECERR, cur_aw.id));
@@ -352,9 +420,14 @@ private:
             b.push(b_packet(RESP_DECERR, cur_aw.id));
         }
     }
-    axi_resp do_write_with_strobe(uint64_t start_addr, int64_t data_pos, int64_t data_len, std::vector<char> &data, std::vector<bool> &strb) {
-        // As the type of std::vector<bool> is very special, we don't use it .data() to pass the bool* pointer
-        // we use the data_pos and data_len instead and pass the reference of the vector<char> and vector<bool> as arguments
+    axi_resp do_write_with_strobe(uint64_t start_addr, int64_t data_pos,
+                                  int64_t data_len,
+                                  std::vector<char> &data,
+                                  std::vector<bool> &strb) {
+        // As the type of std::vector<bool> is very special, we don't use
+        // it .data() to pass the bool* pointer.
+        // we use the data_pos and data_len instead and pass the reference
+        // of the vector<char> and vector<bool> as arguments.
         int64_t l = data_pos;
         int64_t r = data_pos;
         int res = RESP_OKEY;
@@ -364,13 +437,15 @@ private:
             }
             else {
                 if (l < r) {
-                    res |= do_write(start_addr + l - data_pos, r - l, (unsigned char*)&data.data()[l]);
+                    res |= do_write(start_addr + l - data_pos, r - l,
+                                    (unsigned char*)&data.data()[l]);
                 }
                 l = i + 1;
             }
         }
         if (l < r) {
-            res |= do_write(start_addr + l - data_pos, r - l, (unsigned char*)&data.data()[l]);
+            res |= do_write(start_addr + l - data_pos, r - l,
+                            (uint8_t*)&data.data()[l]);
         }
         return static_cast<axi_resp>(res);
     }
