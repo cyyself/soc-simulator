@@ -38,7 +38,7 @@ public:
         return true;
     }
 protected:
-    bool do_read(uint64_t start_addr, uint64_t size, uint8_t* buffer) {
+    bool do_read(uint64_t start_addr, uint64_t size, char* buffer) {
         auto it = devices.upper_bound(std::make_pair(start_addr,ULONG_MAX));
         if (it == devices.begin()) return false;
         it = std::prev(it);
@@ -49,7 +49,7 @@ protected:
         }
         else return false;
     }
-    bool do_write(uint64_t start_addr, uint64_t size, const uint8_t* buffer) {
+    bool do_write(uint64_t start_addr, uint64_t size, const char* buffer) {
         auto it = devices.upper_bound(std::make_pair(start_addr,ULONG_MAX));
         if (it == devices.begin()) return false;
         it = std::prev(it);

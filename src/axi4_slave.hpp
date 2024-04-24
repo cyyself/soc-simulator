@@ -67,9 +67,9 @@ public:
     }
 protected:
     virtual axi_resp do_read (uint64_t start_addr, uint64_t size,
-                              uint8_t* buffer) = 0;
+                              char* buffer) = 0;
     virtual axi_resp do_write(uint64_t start_addr, uint64_t size,
-                              const uint8_t* buffer) = 0;
+                              const char* buffer) = 0;
 private:
     // for memory timing constrain {
     simple_delay_model* delay_model = NULL;
@@ -268,7 +268,7 @@ private:
                     int data_pos = d_width_bytes * i + 
                                    cur_addr_l % d_width_bytes;
                     res |= do_read(cur_addr_l, cur_addr_r - cur_addr_l,
-                                   (unsigned char*)&tmp.data()[data_pos]);
+                                   (char*)&tmp.data()[data_pos]);
                 }
                 r.push(r_packet(static_cast<axi_resp>(res), cur_ar.id, tmp,
                                 cur_ar.d_width));
@@ -283,7 +283,7 @@ private:
                     int data_pos = d_width_bytes * i +
                                    cur_addr_l % d_width_bytes;
                     res |= do_read(cur_addr_l, cur_addr_r - cur_addr_l,
-                                   (unsigned char*)&tmp.data()[data_pos]);
+                                   (char*)&tmp.data()[data_pos]);
                     cur_addr_l = cur_addr_r;
                     cur_addr_r += size_burst;
                 }
@@ -305,7 +305,7 @@ private:
                             int data_pos = d_width_bytes * i +
                                            cur_addr % d_width_bytes;
                             res |= do_read(cur_addr, size_burst,
-                                           (uint8_t*)&tmp.data()[data_pos]);
+                                           (char*)&tmp.data()[data_pos]);
                             cur_addr += size_burst;
                             if (cur_addr == end_addr)
                                 cur_addr = start_addr;
@@ -438,14 +438,14 @@ private:
             else {
                 if (l < r) {
                     res |= do_write(start_addr + l - data_pos, r - l,
-                                    (unsigned char*)&data.data()[l]);
+                                    (char*)&data.data()[l]);
                 }
                 l = i + 1;
             }
         }
         if (l < r) {
             res |= do_write(start_addr + l - data_pos, r - l,
-                            (uint8_t*)&data.data()[l]);
+                            (char*)&data.data()[l]);
         }
         return static_cast<axi_resp>(res);
     }

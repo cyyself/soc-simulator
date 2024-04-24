@@ -10,10 +10,10 @@
 class mmio_mem : public mmio_dev  {
     public:
         mmio_mem(size_t size_bytes) {
-            mem = new unsigned char[size_bytes];
+            mem = new char[size_bytes];
             mem_size = size_bytes;
         }
-        mmio_mem(size_t size_bytes, const unsigned char *init_binary, size_t init_binary_len): mmio_mem(size_bytes) {
+        mmio_mem(size_t size_bytes, const char *init_binary, size_t init_binary_len): mmio_mem(size_bytes) {
             // Initalize memory 
             assert(init_binary_len <= size_bytes);
             memcpy(mem,init_binary,init_binary_len);
@@ -31,7 +31,7 @@ class mmio_mem : public mmio_dev  {
         ~mmio_mem() {
             delete [] mem;
         }
-        bool do_read(uint64_t start_addr, uint64_t size, uint8_t* buffer) {
+        bool do_read(uint64_t start_addr, uint64_t size, char* buffer) {
             if (start_addr + size <= mem_size) {
                 memcpy(buffer,&mem[start_addr],size);
                 return true;
@@ -46,7 +46,7 @@ class mmio_mem : public mmio_dev  {
             }
             else return false;
         }
-        bool do_write(uint64_t start_addr, uint64_t size, const uint8_t* buffer) {
+        bool do_write(uint64_t start_addr, uint64_t size, const char* buffer) {
             if (start_addr + size <= mem_size) {
                 memcpy(&mem[start_addr],buffer,size);
                 if (diff_mem_write) {
@@ -90,18 +90,18 @@ class mmio_mem : public mmio_dev  {
         void set_allow_warp(bool value) {
             allow_warp = true;
         }
-        unsigned char *get_mem_ptr() {
+        char *get_mem_ptr() {
             return mem;
         }
-        void set_diff_mem(unsigned char *diff_mem_addr, bool *_running) {
+        void set_diff_mem(char *diff_mem_addr, bool *_running) {
             diff_mem = diff_mem_addr;
             diff_mem_write = true;
             running = _running;
         }
     private:
         bool diff_mem_write = false;
-        unsigned char *mem;
-        unsigned char *diff_mem;
+        char *mem;
+        char *diff_mem;
         size_t mem_size;
         bool allow_warp = false;
         bool *running = NULL;

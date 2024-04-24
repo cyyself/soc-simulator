@@ -95,7 +95,6 @@ struct axi4_ptr {
     }
 };
 
-
 template <unsigned int A_WIDTH = 64, unsigned int D_WIDTH = 64, unsigned int ID_WIDTH = 4>
 struct axi4_ref {
     AUTO_IN (&awid      ,ID_WIDTH-1, 0);

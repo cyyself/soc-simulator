@@ -60,8 +60,8 @@ public:
         return true;
     }
 protected:
-    virtual bool do_read (uint64_t start_addr, uint64_t size, uint8_t* buffer) = 0;
-    virtual bool do_write(uint64_t start_addr, uint64_t size, const uint8_t* buffer) = 0;
+    virtual bool do_read (uint64_t start_addr, uint64_t size, char* buffer) = 0;
+    virtual bool do_write(uint64_t start_addr, uint64_t size, const char* buffer) = 0;
 
 private:
     // for memory timing constrain {
@@ -234,7 +234,7 @@ private:
     void a_packet_process(a_packet a) {
         switch (a.opcode) {
             case TL_A_PutFullData: {
-                bool ok = do_write(a.address, 1 << a.size, reinterpret_cast<const unsigned char*>(a.data.data()));
+                bool ok = do_write(a.address, 1 << a.size, reinterpret_cast<const char*>(a.data.data()));
                 d_queue.push(make_AccessAck(a.size, a.source, !ok));
                 break;
             }
@@ -251,7 +251,7 @@ private:
             }
             case TL_A_Get: {
                 std::vector<char> buffer = std::vector<char>(1 << a.size);
-                bool ok = do_read(a.address, 1 << a.size, reinterpret_cast<unsigned char*>(buffer.data()));
+                bool ok = do_read(a.address, 1 << a.size, reinterpret_cast<char*>(buffer.data()));
                 d_queue.push(make_AccessAckData(a.size, a.source, !ok, a.address, buffer));
                 break;
             }
@@ -275,14 +275,14 @@ private:
             }
             else {
                 if (l < r) {
-                    res &= do_write(start_addr + l, r - l, &reinterpret_cast<unsigned char*>(data.data())[l]);
+                    res &= do_write(start_addr + l, r - l, &reinterpret_cast<char*>(data.data())[l]);
                 }
                 l = i + 1;
             }
         }
 
         if (l < r) {
-            res &= do_write(start_addr + l, r - l, &reinterpret_cast<unsigned char*>(data.data())[l]);
+            res &= do_write(start_addr + l, r - l, &reinterpret_cast<char*>(data.data())[l]);
         }
 
         return res;

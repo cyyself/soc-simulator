@@ -11,24 +11,24 @@ class axi4_mem : public axi4_slave<A_WIDTH,D_WIDTH,ID_WIDTH>  {
     public:
         axi4_mem(size_t size_bytes) {
             if (size_bytes % (D_WIDTH / 8)) size_bytes += 8 - (size_bytes % (D_WIDTH / 8));
-            mem = new unsigned char[size_bytes];
+            mem = new char[size_bytes];
             mem_size = size_bytes;
         }
-        axi4_mem(size_t size_bytes, const uint8_t *init_binary, size_t init_binary_len):axi4_mem(size_bytes) {
+        axi4_mem(size_t size_bytes, const char *init_binary, size_t init_binary_len):axi4_mem(size_bytes) {
             assert(init_binary_len <= size_bytes);
             memcpy(mem,init_binary,init_binary_len);
         }
         ~axi4_mem() {
             delete [] mem;
         }
-        bool read(off_t start_addr, size_t size, uint8_t* buffer) {
+        bool read(off_t start_addr, size_t size, char* buffer) {
             if (start_addr + size <= mem_size) {
                 memcpy(buffer,&mem[start_addr],size);
                 return true;
             }
             else return false;
         }
-        bool write(off_t start_addr, size_t size, const uint8_t* buffer) {
+        bool write(off_t start_addr, size_t size, const char* buffer) {
             if (start_addr + size <= mem_size) {
                 memcpy(&mem[start_addr],buffer,size);
                 return true;
@@ -46,14 +46,14 @@ class axi4_mem : public axi4_slave<A_WIDTH,D_WIDTH,ID_WIDTH>  {
             file.read((char*)mem+start_addr,file_size);
         }
     protected:
-        axi_resp do_read(uint64_t start_addr, uint64_t size, uint8_t* buffer) {
+        axi_resp do_read(uint64_t start_addr, uint64_t size, char* buffer) {
             if (start_addr + size <= mem_size) {
                 memcpy(buffer,&mem[start_addr],size);
                 return RESP_OKEY;
             }
             else return RESP_DECERR;
         }
-        axi_resp do_write(uint64_t start_addr, uint64_t size, const uint8_t* buffer) {
+        axi_resp do_write(uint64_t start_addr, uint64_t size, const char* buffer) {
             if (start_addr + size <= mem_size) {
                 memcpy(&mem[start_addr],buffer,size);
                 return RESP_OKEY;
@@ -61,7 +61,7 @@ class axi4_mem : public axi4_slave<A_WIDTH,D_WIDTH,ID_WIDTH>  {
             else return RESP_DECERR;
         }
     private:
-        uint8_t *mem;
+        char *mem;
         size_t mem_size;
 };
 

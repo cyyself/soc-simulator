@@ -57,7 +57,7 @@ public:
     void tick() {
         timer ++;
     }
-    bool do_read(uint64_t start_addr, uint64_t size, unsigned char* buffer) {
+    bool do_read(uint64_t start_addr, uint64_t size, char* buffer) {
         confreg_read ++;
         assert(size == 4);
         switch (start_addr) {
@@ -133,7 +133,7 @@ public:
         }
         return true;
     }
-    bool do_write(uint64_t start_addr, uint64_t size, const unsigned char* buffer) {
+    bool do_write(uint64_t start_addr, uint64_t size, const char* buffer) {
         confreg_write ++;
         assert(size == 4 || (size == 1 && start_addr == VIRTUAL_UART_ADDR));
         switch (start_addr) {

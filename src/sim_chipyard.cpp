@@ -139,8 +139,8 @@ void run_system(VChipTop *dut, const char* load_path, uint64_t jump_addr = 0x800
     axi4_xbar<31,64,4> mmio;
 
     mmio_mem           boot_ram(262144*4);
-    boot_ram.do_write(0,sizeof(loader_instr),(uint8_t*)&loader_instr);
-    boot_ram.do_write(0x1000,8,(uint8_t*)&jump_addr);
+    boot_ram.do_write(0,sizeof(loader_instr),(char*)&loader_instr);
+    boot_ram.do_write(0x1000,8,(char*)&jump_addr);
     uartlite           uart;
     std::thread        uart_input_thread(uart_input,std::ref(uart));
     assert(mmio.add_dev(0x60000000,1024*1024,&boot_ram));

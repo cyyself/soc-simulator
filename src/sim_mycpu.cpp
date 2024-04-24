@@ -424,7 +424,7 @@ void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
                 0x00000000u    // nop
             };
             mmio_mem *bl_mem = new mmio_mem(4096);
-            bl_mem->do_write(0,sizeof(loader_instr),(uint8_t*)&loader_instr);
+            bl_mem->do_write(0,sizeof(loader_instr),(char*)&loader_instr);
             // since the bl_mem is read only, shares for both rtl and cemu
             assert(cemu_mmio.add_dev(0x1fc00000, 4096, bl_mem));
             assert( rtl_mmio.add_dev(0x1fc00000, 4096, bl_mem));
@@ -441,7 +441,7 @@ void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
                 0x00000000u    // nop
             };
             mmio_mem *bl_mem = new mmio_mem(4096);
-            bl_mem->do_write(0,sizeof(loader_instr),(uint8_t*)&loader_instr);
+            bl_mem->do_write(0,sizeof(loader_instr),(char*)&loader_instr);
             // since the bl_mem is read only, shares for both rtl and cemu
             assert(cemu_mmio.add_dev(0x1fc00000, 4096, bl_mem));
             assert( rtl_mmio.add_dev(0x1fc00000, 4096, bl_mem));
