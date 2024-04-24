@@ -125,7 +125,6 @@ private:
     int r_index = -1;
     uint8_t d_width_log2 = std::bit_width(D_WIDTH) - 1;
     void input_transaction(axi4_ref <A_WIDTH,D_WIDTH,ID_WIDTH> &pin) {
-        // TODO: add memory timing model and support bit endian host ISA
         // input ar
         if (pin.arvalid && pin.arready) { // ar.fire
             ar_packet tmp;
