@@ -136,7 +136,7 @@ struct axi4_ptr_t {
     uint8_t a_width; // a_width
     uint8_t d_width; // 1<<d_width
     bool init_ptr;
-    axi4_ptr_t(uint8_t a_width, uint8_t _d_width, uint8_t id_width,
+    axi4_ptr_t(uint8_t a_width, uint16_t _d_width, uint8_t id_width,
                bool init_ptr = true): a_width(a_width),id_width(id_width),
                                       init_ptr(init_ptr) {
         d_width = std::bit_width(_d_width) - 1;
