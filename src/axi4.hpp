@@ -174,6 +174,16 @@ struct axi4_ptr_t {
             rlast = new uint8_t[1];
             rvalid = new uint8_t[1];
             rready = new uint8_t[1];
+            *awvalid = 0;
+            *awready = 0;
+            *wvalid = 0;
+            *wready = 0;
+            *bvalid = 0;
+            *bready = 0;
+            *arvalid = 0;
+            *arready = 0;
+            *rvalid = 0;
+            *rready = 0;
         }
     }
     axi4_ptr_t(axi4_ptr_t &copy_from) {
