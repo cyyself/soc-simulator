@@ -5,6 +5,7 @@
 #include "Vmycpu_top.h"
 
 #include "axi4.hpp"
+#include "axi4_ctrl.hpp"
 #include "axi4_mem.hpp"
 #include "axi4_xbar.hpp"
 #include "mmio_mem.hpp"
@@ -374,12 +375,53 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
     printf("total ticks = %lu\n", ticks);
 }
 
+void bind_wire(axi4_ref <32,32,4> &rtl_mmio_ref, axi4_ptr_t &ptr) {
+    // aw
+    ptr.awid = &(rtl_mmio_ref.awid);
+    ptr.awaddr = (uint8_t*)&(rtl_mmio_ref.awaddr);
+    ptr.awlen = &(rtl_mmio_ref.awlen);
+    ptr.awsize = &(rtl_mmio_ref.awsize);
+    ptr.awburst = &(rtl_mmio_ref.awburst);
+    ptr.awvalid = &(rtl_mmio_ref.awvalid);
+    ptr.awready = &(rtl_mmio_ref.awready);
+    // w
+    ptr.wdata = (uint8_t*)&(rtl_mmio_ref.wdata);
+    ptr.wstrb = &(rtl_mmio_ref.wstrb);
+    ptr.wlast = &(rtl_mmio_ref.wlast);
+    ptr.wvalid = &(rtl_mmio_ref.wvalid);
+    ptr.wready = &(rtl_mmio_ref.wready);
+    // b
+    ptr.bid = &(rtl_mmio_ref.bid);
+    ptr.bresp = &(rtl_mmio_ref.bresp);
+    ptr.bvalid = &(rtl_mmio_ref.bvalid);
+    ptr.bready = &(rtl_mmio_ref.bready);
+    // ar
+    ptr.arid = &(rtl_mmio_ref.arid);
+    ptr.araddr = (uint8_t*)&(rtl_mmio_ref.araddr);
+    ptr.arlen = &(rtl_mmio_ref.arlen);
+    ptr.arsize = &(rtl_mmio_ref.arsize);
+    ptr.arburst = &(rtl_mmio_ref.arburst);
+    ptr.arvalid = &(rtl_mmio_ref.arvalid);
+    ptr.arready = &(rtl_mmio_ref.arready);
+    // r
+    ptr.rid = &(rtl_mmio_ref.rid);
+    ptr.rdata = (uint8_t*)&(rtl_mmio_ref.rdata);
+    ptr.rresp = &(rtl_mmio_ref.rresp);
+    ptr.rlast = &(rtl_mmio_ref.rlast);
+    ptr.rvalid = &(rtl_mmio_ref.rvalid);
+    ptr.rready = &(rtl_mmio_ref.rready);
+}
+
 void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
     memory_bus cemu_mmio;
 
-    axi4     <32,32,4> rtl_mmio_sigs;
-    axi4_ref <32,32,4> rtl_mmio_sigs_ref(rtl_mmio_sigs);
-    axi4_xbar<32,32,4> rtl_mmio(enable_axi_latency ? 23 : 0); // AXI latency
+    axi4_ptr_t ptr_to_rtl(32,32,4, false);
+    bind_wire(rtl_mmio_ref, ptr_to_rtl);
+    axi4_ptr_t rtl_mmio_sigs(32,32,4);
+
+    axi4_ctrl rtl_mmio;
+    simple_delay_model delay_model(23);
+    rtl_mmio.insert_memory_timing_model(0x0, 512*1024*1024, &delay_model);
 
     std::vector<mmio_dev*> devices;
 
@@ -487,12 +529,13 @@ void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
         top->aclk = !top->aclk;
         top->ext_int = rtl_uart.irq() << uart_irq_number; // level irq
         // fetch axi signals from rtl at negedge
-        if (top->aclk) rtl_mmio_sigs.update_input(rtl_mmio_ref);
+        if (top->aclk) rtl_mmio_sigs.update_input(ptr_to_rtl);
         top->eval();
         // process axi signals at posedge
         if (top->aclk) {
-            rtl_mmio.beat(rtl_mmio_sigs_ref);
-            rtl_mmio_sigs.update_output(rtl_mmio_ref);
+            delay_model.tick();
+            rtl_mmio.tick(rtl_mmio_sigs);
+            rtl_mmio_sigs.update_output(ptr_to_rtl);
             while (rtl_uart.exist_tx()) {
                 char c = rtl_uart.getc();
                 printf("%c",c);

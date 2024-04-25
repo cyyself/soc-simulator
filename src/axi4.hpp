@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <set>
 #include <cstring>
+#include <bit>
 #include "auto_sig.hpp"
 
 /*
@@ -92,6 +93,256 @@ struct axi4_ptr {
         s.insert((void*)rvalid);
         s.insert((void*)rready);
         return s.size() == 29 && s.count(NULL) == 0;
+    }
+};
+
+struct axi4_ptr_t {
+    // aw
+    uint8_t *awid;
+    uint8_t *awaddr;
+    uint8_t *awlen;
+    uint8_t *awsize;
+    uint8_t *awburst;
+    uint8_t *awvalid;
+    uint8_t *awready;
+    // w
+    uint8_t *wdata;
+    uint8_t *wstrb;
+    uint8_t *wlast;
+    uint8_t *wvalid;
+    uint8_t *wready;
+    // b
+    uint8_t *bid;
+    uint8_t *bresp;
+    uint8_t *bvalid;
+    uint8_t *bready;
+    // ar
+    uint8_t *arid;
+    uint8_t *araddr;
+    uint8_t *arlen;
+    uint8_t *arsize;
+    uint8_t *arburst;
+    uint8_t *arvalid;
+    uint8_t *arready;
+    // r
+    uint8_t *rid;
+    uint8_t *rdata;
+    uint8_t *rresp;
+    uint8_t *rlast;
+    uint8_t *rvalid;
+    uint8_t *rready;
+    // meta
+    uint8_t id_width; // id_width
+    uint8_t a_width; // a_width
+    uint8_t d_width; // 1<<d_width
+    bool init_ptr;
+    axi4_ptr_t(uint8_t a_width, uint8_t _d_width, uint8_t id_width,
+               bool init_ptr = true): a_width(a_width),id_width(id_width),
+                                      init_ptr(init_ptr) {
+        d_width = std::bit_width(_d_width) - 1;
+        if (init_ptr) {
+            awid = new uint8_t[(id_width+7)/8];
+            awaddr = new uint8_t[(a_width+7)/8];
+            awlen = new uint8_t[1];
+            awsize = new uint8_t[1];
+            awburst = new uint8_t[1];
+            awvalid = new uint8_t[1];
+            awready = new uint8_t[1];
+            // w
+            wdata = new uint8_t[((1<<d_width)+7)/8];
+            wstrb = new uint8_t[((((1<<d_width)+7)/8)+7)/8];
+            wlast = new uint8_t[1];
+            wvalid = new uint8_t[1];
+            wready = new uint8_t[1];
+            // b
+            bid = new uint8_t[(id_width+7)/8];
+            bresp = new uint8_t[1];
+            bvalid = new uint8_t[1];
+            bready = new uint8_t[1];
+            // ar
+            arid = new uint8_t[(id_width+7)/8];
+            araddr = new uint8_t[(a_width+7)/8];
+            arlen = new uint8_t[1];
+            arsize = new uint8_t[1];
+            arburst = new uint8_t[1];
+            arvalid = new uint8_t[1];
+            arready = new uint8_t[1];
+            // r
+            rid = new uint8_t[(id_width+7)/8];
+            rdata = new uint8_t[((1<<d_width)+7)/8];
+            rresp = new uint8_t[1];
+            rlast = new uint8_t[1];
+            rvalid = new uint8_t[1];
+            rready = new uint8_t[1];
+        }
+    }
+    ~axi4_ptr_t() {
+        if (init_ptr) {
+            delete[] awid;
+            delete[] awaddr;
+            delete[] awlen;
+            delete[] awsize;
+            delete[] awburst;
+            delete[] awvalid;
+            delete[] awready;
+            // w
+            delete[] wdata;
+            delete[] wstrb;
+            delete[] wlast;
+            delete[] wvalid;
+            delete[] wready;
+            // b
+            delete[] bid;
+            delete[] bresp;
+            delete[] bvalid;
+            delete[] bready;
+            // ar
+            delete[] arid;
+            delete[] araddr;
+            delete[] arlen;
+            delete[] arsize;
+            delete[] arburst;
+            delete[] arvalid;
+            delete[] arready;
+            // r
+            delete[] rid;
+            delete[] rdata;
+            delete[] rresp;
+            delete[] rlast;
+            delete[] rvalid;
+            delete[] rready;
+        }
+    }
+    int get_dwidth_bits() {
+        return 1<<d_width;
+    }
+    uint64_t get_arid() {
+        uint64_t ret = 0;
+        for (int i = (id_width+7)/8-1; i >= 0; i--) {
+            ret = (ret << 8) | arid[i];
+        }
+        return ret;
+    }
+    uint64_t get_awid() {
+        uint64_t ret = 0;
+        for (int i = (id_width+7)/8-1; i >= 0; i--) {
+            ret = (ret << 8) | awid[i];
+        }
+        return ret;
+    }
+    uint64_t get_rid() {
+        uint64_t ret = 0;
+        for (int i = (id_width+7)/8-1; i >= 0; i--) {
+            ret = (ret << 8) | rid[i];
+        }
+        return ret;
+    }
+    uint64_t get_bid() {
+        uint64_t ret = 0;
+        for (int i = (id_width+7)/8-1; i >= 0; i--) {
+            ret = (ret << 8) | bid[i];
+        }
+        return ret;
+    }
+    uint64_t get_araddr() {
+        uint64_t ret = 0;
+        for (int i = (a_width+7)/8-1; i >= 0; i--) {
+            ret = (ret << 8) | araddr[i];
+        }
+        return ret;
+    }
+    uint64_t get_awaddr() {
+        uint64_t ret = 0;
+        for (int i = (a_width+7)/8-1; i >= 0; i--) {
+            ret = (ret << 8) | awaddr[i];
+        }
+        return ret;
+    }
+    void set_arid(uint64_t val) {
+        for (int i = 0; i < (id_width+7)/8; i++) {
+            arid[i] = val & 0xff;
+            val >>= 8;
+        }
+    }
+    void set_awid(uint64_t val) {
+        for (int i = 0; i < (id_width+7)/8; i++) {
+            awid[i] = val & 0xff;
+            val >>= 8;
+        }
+    }
+    void set_rid(uint64_t val) {
+        for (int i = 0; i < (id_width+7)/8; i++) {
+            rid[i] = val & 0xff;
+            val >>= 8;
+        }
+    }
+    void set_bid(uint64_t val) {
+        for (int i = 0; i < (id_width+7)/8; i++) {
+            bid[i] = val & 0xff;
+            val >>= 8;
+        }
+    }
+    void set_araddr(uint64_t val) {
+        for (int i = 0; i < (a_width+7)/8; i++) {
+            araddr[i] = val & 0xff;
+            val >>= 8;
+        }
+    }
+    void set_awaddr(uint64_t val) {
+        for (int i = 0; i < (a_width+7)/8; i++) {
+            awaddr[i] = val & 0xff;
+            val >>= 8;
+        }
+    }
+    void update_input(axi4_ptr_t &from) {
+        // aw
+        set_awid(from.get_awid());
+        set_awaddr(from.get_awaddr());
+        *awlen = *from.awlen;
+        *awsize = *from.awsize;
+        *awburst = *from.awburst;
+        *awvalid = *from.awvalid;
+        // w
+        for (int i = 0; i < ((1<<d_width)+7)/8; i++) {
+            wdata[i] = from.wdata[i];
+        }
+        for (int i = 0; i < (((1<<d_width)+7)/8+7)/8; i++) {
+            wstrb[i] = from.wstrb[i];
+        }
+        *wlast = *from.wlast;
+        *wvalid = *from.wvalid;
+        // b
+        *bready = *from.bready;
+        // ar
+        set_arid(from.get_arid());
+        set_araddr(from.get_araddr());
+        *arlen = *from.arlen;
+        *arsize = *from.arsize;
+        *arburst = *from.arburst;
+        *arvalid = *from.arvalid;
+        // r
+        *rready = *from.rready;
+    }
+
+    void update_output(axi4_ptr_t &to) {
+        // aw
+        *to.awready = *awready;
+        // w
+        *to.wready = *wready;
+        // b
+        to.set_bid(get_bid());
+        *to.bresp = *bresp;
+        *to.bvalid = *bvalid;
+        // ar
+        *to.arready = *arready;
+        // r
+        to.set_rid(get_rid());
+        for (int i = 0; i < ((1<<d_width)+7)/8; i++) {
+            to.rdata[i] = rdata[i];
+        }
+        *to.rresp = *rresp;
+        *to.rlast = *rlast;
+        *to.rvalid = *rvalid;
     }
 };
 
