@@ -176,6 +176,46 @@ struct axi4_ptr_t {
             rready = new uint8_t[1];
         }
     }
+    axi4_ptr_t(axi4_ptr_t &copy_from) {
+        a_width = copy_from.a_width;
+        d_width = copy_from.d_width;
+        id_width = copy_from.id_width;
+        init_ptr = false;
+        // aw
+        awid = copy_from.awid;
+        awaddr = copy_from.awaddr;
+        awlen = copy_from.awlen;
+        awsize = copy_from.awsize;
+        awburst = copy_from.awburst;
+        awvalid = copy_from.awvalid;
+        awready = copy_from.awready;
+        // w
+        wdata = copy_from.wdata;
+        wstrb = copy_from.wstrb;
+        wlast = copy_from.wlast;
+        wvalid = copy_from.wvalid;
+        wready = copy_from.wready;
+        // b
+        bid = copy_from.bid;
+        bresp = copy_from.bresp;
+        bvalid = copy_from.bvalid;
+        bready = copy_from.bready;
+        // ar
+        arid = copy_from.arid;
+        araddr = copy_from.araddr;
+        arlen = copy_from.arlen;
+        arsize = copy_from.arsize;
+        arburst = copy_from.arburst;
+        arvalid = copy_from.arvalid;
+        arready = copy_from.arready;
+        // r
+        rid = copy_from.rid;
+        rdata = copy_from.rdata;
+        rresp = copy_from.rresp;
+        rlast = copy_from.rlast;
+        rvalid = copy_from.rvalid;
+        rready = copy_from.rready;
+    }
     ~axi4_ptr_t() {
         if (init_ptr) {
             delete[] awid;
