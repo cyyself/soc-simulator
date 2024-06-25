@@ -1,7 +1,10 @@
 #include "verilated.h"
+
+#if VM_TRACE_FST
 #include "verilated_fst_c.h"
+#endif
+
 #include "svdpi.h"
-// #include "Vmycpu_top__Dpi.h"
 #include "Vmycpu_top.h"
 
 #include "axi4.hpp"
@@ -87,12 +90,15 @@ std::atomic_bool trace_on;
 // run time config }
 
 unsigned int *pc;
+
+#if VM_TRACE_FST
 VerilatedFstC fst;
 
 void open_trace() {
     fst.open("trace.fst");
     trace_on.store(true, std::memory_order_seq_cst);
 }
+#endif
 
 void uart_input(uart8250 &uart) {
     termios tmp;
@@ -102,7 +108,9 @@ void uart_input(uart8250 &uart) {
     while (running) {
         char c = getchar();
         if (c == 9) printf("pc = %x\n",*pc); // ctrl+i
+#if VM_TRACE_FST
         else if (c == 20) open_trace(); // ctrl+t
+#endif
         else if (c == 10) c = 13; // convert lf to cr
         uart.putc(c);
     }
@@ -127,9 +135,11 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     confreg.set_trace_file("../nscscc-group/func_test_v0.01/cpu132_gettrace/golden_trace.txt");
     assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
 
+#if VM_TRACE_FST
     // connect fst for trace
     top->trace(&fst,0);
     if (trace_on) open_trace();
+#endif
 
     // reset rtl for 100 ticks
     top->aresetn = 0;
@@ -160,6 +170,7 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
                 printf("Number %d Functional Test Point PASS!\n", test_point>>24);
             }
         }
+#if VM_TRACE_FST
         if (trace_on) { // print wave if trace_on
             top->eval(); // update rtl status changed by axi, this will only affect waveform
             fst.dump(ticks);
@@ -170,6 +181,7 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             open_trace();
         }
         // custom trace add to here
+#endif
         // basic simulation }
         if (both_edge_commit || top->aclk)  {
             // deadlock detection {
@@ -191,7 +203,9 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
         }
         
     }
+#if VM_TRACE_FST
     if (trace_on) fst.close();
+#endif
     top->final();
 }
 
@@ -217,9 +231,11 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
     // setup diff memory
     if (diff_memory_write) rtl_perf_mem.set_diff_mem(cemu_perf_mem.get_mem_ptr(), &running);
 
+#if VM_TRACE_FST
     // connect fst for trace
     top->trace(&fst,0);
     if (trace_on) open_trace();
+#endif
 
     // init cemu_mips
     mips_core<32> cemu_mips(cemu_mmio);
@@ -240,10 +256,12 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
         for (int i=0;i<100;i++) {
             top->aclk = !top->aclk;
             top->eval();
+#if VM_TRACE_FST
             if (trace_on) { // print wave if trace_on
                 fst.dump(ticks++);
                 sim_time --;
             }
+#endif
         }
         top->aresetn = 1;
         // reset axi
@@ -278,6 +296,7 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
                     fflush(stdout);
                 }
             }
+#if VM_TRACE_FST
             if (trace_on) { // print wave if trace_on
                 top->eval(); // update rtl status changed by axi, this will only affect waveform
                 fst.dump(ticks);
@@ -288,6 +307,7 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
                 open_trace();
             }
             // custom trace add to here
+#endif
             // basic simulation }
             if (both_edge_commit || top->aclk)  {
                 // deadlock detection {
@@ -371,7 +391,9 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
         if (sim_time <= 0) running = false;
     }
     top->final();
+#if VM_TRACE_FST
     if (trace_on) fst.close();
+#endif
     printf("total ticks = %lu\n", ticks);
 }
 
@@ -503,9 +525,11 @@ void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
     // setup diff memory
     if (diff_memory_write) rtl_dram.set_diff_mem(cemu_dram.get_mem_ptr(), &running);
 
+#if VM_TRACE_FST
     // connect fst for trace
     top->trace(&fst,0);
     if (trace_on) open_trace();
+#endif
 
     // reset rtl for 100 ticks
     top->aresetn = 0;
@@ -542,6 +566,7 @@ void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
                 fflush(stdout);
             }
         }
+#if VM_TRACE_FST        
         if (trace_on) { // print wave if trace_on
             top->eval(); // update rtl status changed by axi, this will only affect waveform
             fst.dump(ticks);
@@ -552,6 +577,7 @@ void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
             open_trace();
         }
         // custom trace add to here
+#endif
         // basic simulation }
         if (both_edge_commit || top->aclk)  {
             // deadlock detection {
@@ -603,7 +629,9 @@ void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
         }
     }
     top->final();
+#if VM_TRACE_FST
     if (trace_on) fst.close();
+#endif
     pthread_kill(uart_input_thread->native_handle(),SIGKILL);
     for (auto x : devices) delete x;
 }
@@ -680,7 +708,9 @@ int main(int argc, char** argv, char** env) {
             run_mode = UBOOT;
         }
     }
+#if VM_TRACE_FST
     Verilated::traceEverOn(true);
+#endif
     // setup soc
     Vmycpu_top *top = new Vmycpu_top;
     pc = &(top->debug_wb_pc);
