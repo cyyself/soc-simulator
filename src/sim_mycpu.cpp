@@ -192,7 +192,7 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             }
             // deadlock detection }
             // trace pc {
-            if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
+            if (trace_pc && top->debug_wb_rf_wen) printf("pc = %x\n", top->debug_wb_pc);
             // trace pc }
             // compare func trace
             if (!nodifftest) running = confreg.do_trace(top->debug_wb_pc,top->debug_wb_rf_wen,top->debug_wb_rf_wnum,top->debug_wb_rf_wdata);
@@ -318,7 +318,7 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
                 }
                 // deadlock detection }
                 // trace pc {
-                if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
+                if (trace_pc && top->debug_wb_rf_wen) printf("pc = %x\n", top->debug_wb_pc);
                 // trace pc }
                 // difftest with cemu {
                 if (!nodifftest) {
@@ -588,7 +588,7 @@ void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
             }
             // deadlock detection }
             // trace pc {
-            if (trace_pc && top->debug_wb_rf_wen) printf("pc = %lx\n", top->debug_wb_pc);
+            if (trace_pc && top->debug_wb_rf_wen) printf("pc = %x\n", top->debug_wb_pc);
             // trace pc }
 #ifdef HAS_DEBUG_EXT
             if (!nodifftest && top->debug_commit && top->debug_wb_pc) { // cemu difftest
@@ -684,7 +684,7 @@ int main(int argc, char** argv, char** env) {
         }
         else if (strcmp(argv[i],"-prog") == 0) {
             if (i+1 < argc) {
-                sscanf(argv[++i],"%lu",&perf_start);
+                sscanf(argv[++i],"%u",&perf_start);
                 perf_end = perf_start;
                 printf("set performance test program to %d\n",perf_start);
             }

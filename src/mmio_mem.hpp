@@ -52,7 +52,7 @@ class mmio_mem : public mmio_dev  {
                 if (diff_mem_write) {
                     for (int i=0;i<size;i++) if (mem[start_addr+i] != diff_mem[start_addr+i]) {
                         *running = false;
-                        printf("Error writeback cache at addr %x\n",start_addr+i);
+                        printf("Error writeback cache at addr %lx\n",start_addr+i);
                     }
                 }
                 return true;
@@ -64,7 +64,7 @@ class mmio_mem : public mmio_dev  {
                     if (diff_mem_write) {
                         for (int i=0;i<size;i++) if (mem[start_addr+i] != diff_mem[start_addr+i]) {
                             *running = false;
-                            printf("Error writeback cache at addr %x\n",start_addr+i);
+                            printf("Error writeback cache at addr %lx\n",start_addr+i);
                         }
                     }
                     return true;

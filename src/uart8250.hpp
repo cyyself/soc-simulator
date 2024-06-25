@@ -84,7 +84,7 @@ public:
             case UART8250_MSR: {
                 // Carrier detect = 1
                 // Clear to send = 1
-                *buffer = (1<<7) | (1<<4);
+                *buffer = static_cast<char>((1<<7) | (1<<4));
                 break;
             }
             case UART8250_SCR: {
