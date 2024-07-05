@@ -238,7 +238,7 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
 #endif
 
     // init cemu_mips
-    mips_core<32> cemu_mips(cemu_mmio);
+    mips_core<8> cemu_mips(cemu_mmio);
 
     // start simulation
     uint64_t last_commit = 0;
@@ -540,7 +540,7 @@ void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
     top->aresetn = 1;
 
     // init cemu_mips
-    mips_core<32> cemu_mips(cemu_mmio);
+    mips_core<8> cemu_mips(cemu_mmio);
     cemu_mips.set_difftest_mode(!nodifftest);
 
     // start simulation
