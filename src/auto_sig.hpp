@@ -6,7 +6,9 @@
 #define AUTO_TYPE(msb, lsb) \
     typename std::conditional <((msb)-(lsb)+1) <=  8, CData, \
     typename std::conditional <((msb)-(lsb)+1) <= 16, SData, \
-    typename std::conditional <((msb)-(lsb)+1) <= 32, IData, QData >::type >::type >::type
+    typename std::conditional <((msb)-(lsb)+1) <= 32, IData, \
+    typename std::conditional <((msb)-(lsb)+1) <= 64, QData, \
+    VlWide<((msb)-(lsb)+1+31)/32> >::type >::type >::type >::type
 
 #define AUTO_SIG(name, msb, lsb) AUTO_TYPE(msb,lsb) name
 
