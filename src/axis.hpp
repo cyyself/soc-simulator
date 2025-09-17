@@ -44,11 +44,12 @@ struct axis_rx {
             rx_queue.pop();
             // TODO: check max size
             for (auto x : data) *(dst_buf++) = x;
+            return data.size();
         }
     }
     void tick() {
         if (*(port.tvalid)) {
-            for (int i=0;i<D_WIDTH;i++) {
+            for (int i=0;i<D_WIDTH / 8;i++) {
                 bool should_preserve = (((unsigned char*)port.tkeep)[i/8] >> (i % 8)) & 1;
                 if (should_preserve) {
                     recv_buf.push_back(((char*)port.tdata)[i]);
