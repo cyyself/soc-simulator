@@ -88,17 +88,17 @@ struct axis_tx {
             }
             if (!tx_buf.empty()) {
                 int byte_pos = 0;
-                while (!tx_queue.empty() && byte_pos < byte_width) {
+                while (!tx_buf.empty() && byte_pos < byte_width) {
                     ((char*)port.tdata)[byte_pos++] = tx_buf.front();
                     tx_buf.pop();
                 }
                 // fill tkeep
-                for (int i=0;i<D_WIDTH/8;i++) {
+                for (int i=0;i<D_WIDTH/8;i+=8) {
                     unsigned char cur_fill = 0;
-                    for (int j=0;j<8;j++) {
-                        if (i * 8 + j < byte_pos) cur_fill |= 1 << j;
+                    for (int j=0;j<8 && i+j < D_WIDTH/8;j++) {
+                        if (byte_pos > i+j) cur_fill |= (1<<j);
                     }
-                    ((unsigned char*)port.tkeep)[i] = cur_fill;
+                    ((unsigned char*)port.tkeep)[i/8] = cur_fill;
                 }
                 // set tlast
                 *(port.tlast) = tx_buf.empty();
