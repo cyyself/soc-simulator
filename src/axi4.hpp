@@ -5,6 +5,8 @@
 #include <set>
 #include <cstring>
 #include <bit>
+#include <map>
+#include <string>
 #include "auto_sig.hpp"
 
 /*
@@ -607,6 +609,21 @@ struct ar_packet {
         d_width = 0;
         burst = BURST_FIXED;
     }
+    ar_packet(std::map<std::string, std::vector<char> > fields, uint8_t _d_width):d_width(_d_width) {
+        assert(fields.count("id") && fields.count("addr") && fields.count("len") &&
+               fields.count("size") && fields.count("burst"));
+        id = 0;
+        for (size_t i = 0; i < fields["id"].size(); i++) {
+            id |= ((uint64_t)(uint8_t)fields["id"][i]) << (i * 8);
+        }
+        addr = 0;
+        for (size_t i = 0; i < fields["addr"].size(); i++) {
+            addr |= ((uint64_t)(uint8_t)fields["addr"][i]) << (i * 8);
+        }
+        len = static_cast<uint8_t>(fields["len"][0]);
+        size = static_cast<uint8_t>(fields["size"][0]);
+        burst = static_cast<axi_burst_type>(fields["burst"][0]);
+    }
 };
 
 struct aw_packet {
@@ -623,6 +640,21 @@ struct aw_packet {
         size = 0;
         d_width = 0;
         burst = BURST_FIXED;
+    }
+    aw_packet(std::map<std::string, std::vector<char> > fields, uint8_t _d_width):d_width(_d_width) {
+        assert(fields.count("id") && fields.count("addr") && fields.count("len") &&
+               fields.count("size") && fields.count("burst"));
+        id = 0;
+        for (size_t i = 0; i < fields["id"].size(); i++) {
+            id |= ((uint64_t)(uint8_t)fields["id"][i]) << (i * 8);
+        }
+        addr = 0;
+        for (size_t i = 0; i < fields["addr"].size(); i++) {
+            addr |= ((uint64_t)(uint8_t)fields["addr"][i]) << (i * 8);
+        }
+        len = static_cast<uint8_t>(fields["len"][0]);
+        size = static_cast<uint8_t>(fields["size"][0]);
+        burst = static_cast<axi_burst_type>(fields["burst"][0]);
     }
 };
 
@@ -698,6 +730,14 @@ struct b_packet {
     b_packet(axi_resp _resp, uint64_t _id) {
         resp = _resp;
         id = _id;
+    }
+    b_packet(std::map<std::string, std::vector<char> > fields) {
+        assert(fields.count("resp") && fields.count("id"));
+        resp = static_cast<axi_resp>(fields["resp"][0]);
+        id = 0;
+        for (size_t i = 0; i < fields["id"].size(); i++) {
+            id |= ((uint64_t)(uint8_t)fields["id"][i]) << (i * 8);
+        }
     }
 };
 
