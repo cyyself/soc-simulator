@@ -156,6 +156,7 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     while (!Verilated::gotFinish() && sim_time > 0 && running) {
         // basic simulation {
         ticks ++;
+        Verilated::timeInc(1);
         top->aclk = !top->aclk;
         // fetch axi signals from rtl at negedge
         if (top->aclk) mmio_sigs.update_input(mmio_ref);
@@ -282,6 +283,7 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref, int test_start 
         while (!Verilated::gotFinish() && sim_time > 0 && running && cur_running) {
             // basic simulation {
             ticks ++;
+            Verilated::timeInc(1);
             top->aclk = !top->aclk;
             // fetch axi signals from rtl at negedge
             if (top->aclk) rtl_mmio_sigs.update_input(rtl_mmio_ref);
@@ -550,6 +552,7 @@ void rtl_cemu_diff_generic(Vmycpu_top *top, axi4_ref <32,32,4> &rtl_mmio_ref) {
     while (!Verilated::gotFinish() && sim_time > 0 && running) {
         // basic simulation {
         ticks ++;
+        Verilated::timeInc(1);
         top->aclk = !top->aclk;
         top->ext_int = rtl_uart.irq() << uart_irq_number; // level irq
         // fetch axi signals from rtl at negedge
