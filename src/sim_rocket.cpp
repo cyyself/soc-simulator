@@ -6,6 +6,7 @@
 #include "axi4_xbar.hpp"
 #include "mmio_mem.hpp"
 #include "uartlite.hpp"
+#include "rocket_top.hpp"
 
 #include <iostream>
 #include <termios.h>
@@ -125,21 +126,24 @@ int main(int argc, char** argv, char** env) {
     axi4_ref <32,64,4> mem_sigs_ref(mem_sigs);
     axi4_mem <32,64,4> mem(4096l*1024*1024);
     mem.load_binary("../opensbi/build/platform/generic/firmware/fw_payload.bin",0x80000000);
-    top->reset = 1;
+    bool in_reset = true;
+    rocket_set_reset(top, 1);
+    rocket_tie_off_debug(top);
+    rocket_tie_off_l2_frontend(top);
     uint64_t ticks = 0;
     long max_trace_ticks = 1000;
     uint64_t uart_tx_bytes = 0;
     while (!Verilated::gotFinish() && max_trace_ticks > 0 && running) {
         top->eval();
         ticks ++;
-        if (ticks == 9) top->reset = 0;
-        top->clock = 1;
+        if (ticks == 9) { in_reset = false; rocket_set_reset(top, 0); }
+        rocket_set_clock(top, 1);
         // posedge
         mmio_sigs.update_input(mmio_ref);
         mem_sigs.update_input(mem_ref);
         top->eval();
         ticks ++;
-        if (!top->reset) {
+        if (!in_reset) {
             mem.beat(mem_sigs_ref);
             mmio.beat(mmio_sigs_ref);
             while (uart.exist_tx()) {
@@ -150,8 +154,8 @@ int main(int argc, char** argv, char** env) {
         }
         mmio_sigs.update_output(mmio_ref);
         mem_sigs.update_output(mem_ref);
-        top->interrupts = uart.irq();
-        top->clock = 0;
+        top->interrupts = (uint8_t)(uart.irq() & 0x3);
+        rocket_set_clock(top, 0);
     }
     top->final();
     return 0;

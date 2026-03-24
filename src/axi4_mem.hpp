@@ -45,6 +45,8 @@ class axi4_mem : public axi4_slave<A_WIDTH,D_WIDTH,ID_WIDTH>  {
             }
             file.read((char*)mem+start_addr,file_size);
         }
+        char *get_mem_ptr() { return mem; }
+        size_t get_mem_size() { return mem_size; }
     protected:
         axi_resp do_read(uint64_t start_addr, uint64_t size, char* buffer) {
             if (start_addr + size <= mem_size) {
